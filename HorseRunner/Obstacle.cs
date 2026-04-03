@@ -9,10 +9,10 @@ public class Obstacle
     public Vector2 Position;
     public int Width;
     public int Height;
-    public bool IsCleared;  // successfully jumped over
-    public bool IsPassed;   // scrolled past (hit or missed)
-    public bool IsApple;    // the final apple reward
-    public bool IsActive = true; // visible and collidable
+    public bool IsCleared;
+    public bool IsPassed;
+    public bool IsApple;
+    public bool IsActive = true;
 
     public Obstacle(Texture2D texture, float startX, float groundY, bool isApple = false)
     {
@@ -21,27 +21,23 @@ public class Obstacle
 
         if (isApple)
         {
-            Width = 32;
-            Height = 32;
-            // Apple floats above ground
-            Position = new Vector2(startX, groundY - 64 - Height);
-            IsActive = false; // only appears when all obstacles cleared
+            Width = 48;
+            Height = 48;
+            Position = new Vector2(startX, groundY - 96 - Height);
+            IsActive = false;
         }
         else
         {
             Width = texture.Width;
             Height = texture.Height;
-            // Clamp to reasonable sizes
-            if (Width > 64) Width = 64;
-            if (Height > 48) Height = 48;
-            // Place on the ground
+            if (Width > 80) Width = 80;
+            if (Height > 52) Height = 52;
             Position = new Vector2(startX, groundY - Height);
         }
     }
 
     public void Update(float scrollSpeed, float dt)
     {
-        // Obstacles scroll to the left
         Position.X -= scrollSpeed * dt;
     }
 
@@ -53,11 +49,11 @@ public class Obstacle
     public void Draw(SpriteBatch spriteBatch)
     {
         if (!IsActive) return;
-        if (Position.X + Width < -50 || Position.X > 850) return; // off screen
+        if (Position.X + Width < -50 || Position.X > 850) return;
 
         Color tint = Color.White;
         if (IsCleared)
-            tint = Color.White * 0.3f; // fade out cleared obstacles
+            tint = Color.White * 0.3f;
 
         spriteBatch.Draw(_texture,
             new Rectangle((int)Position.X, (int)Position.Y, Width, Height),

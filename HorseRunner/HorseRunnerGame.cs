@@ -19,24 +19,36 @@ public class HorseRunnerGame : Game
     // Textures
     private Texture2D _horseRunTexture;
     private Texture2D _horseJumpTexture;
+    private Texture2D _horseFallTexture;
     private Texture2D _obstacleLogTexture;
     private Texture2D _obstacleRockTexture;
     private Texture2D _obstacleBushTexture;
     private Texture2D _appleTexture;
     private Texture2D _forestBgTexture;
     private Texture2D _groundTexture;
-    private Texture2D _pixel; // for drawing simple shapes/UI
+    private Texture2D _heartTexture;
+    private Texture2D _pixel;
 
+    // Fonts
+    private SpriteFont _gameFont;
+    private SpriteFont _titleFont;
 
     // Game state
     private enum GameState { Title, Playing, Won, GameOver }
     private GameState _state;
     private int _score;
     private float _gameTimer;
-    private const float GameDuration = 60f; // 1 minute
+    private const float GameDuration = 60f;
     private float _scrollSpeed = 200f;
     private float _scrollOffset;
     private bool _appleCollected;
+
+    // Apple reward animation
+    private float _appleRewardTimer;
+    private const float AppleRewardDuration = 3f;
+
+    // Input debounce
+    private KeyboardState _prevKeyState;
 
     // Screen
     public const int ScreenWidth = 800;
@@ -65,17 +77,20 @@ public class HorseRunnerGame : Game
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-        // Load textures - these are sprite sheets / individual sprites
         _horseRunTexture = Content.Load<Texture2D>("Sprites/horse_rider_run");
         _horseJumpTexture = Content.Load<Texture2D>("Sprites/horse_rider_jump");
+        _horseFallTexture = Content.Load<Texture2D>("Sprites/horse_rider_fall");
         _obstacleLogTexture = Content.Load<Texture2D>("Sprites/obstacle_log");
         _obstacleRockTexture = Content.Load<Texture2D>("Sprites/obstacle_rock");
         _obstacleBushTexture = Content.Load<Texture2D>("Sprites/obstacle_bush");
         _appleTexture = Content.Load<Texture2D>("Sprites/apple");
         _forestBgTexture = Content.Load<Texture2D>("Sprites/forest_bg");
         _groundTexture = Content.Load<Texture2D>("Sprites/ground");
+        _heartTexture = Content.Load<Texture2D>("Sprites/heart");
 
-        // Create a 1x1 pixel texture for UI drawing
+        _gameFont = Content.Load<SpriteFont>("GameFont");
+        _titleFont = Content.Load<SpriteFont>("TitleFont");
+
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData(new[] { Color.White });
 
@@ -89,14 +104,14 @@ public class HorseRunnerGame : Game
         _gameTimer = 0f;
         _scrollOffset = 0f;
         _appleCollected = false;
+        _appleRewardTimer = 0f;
 
-        // Create player (horse + rider)
         _player = new Player(
             _horseRunTexture,
             _horseJumpTexture,
-            new Vector2(120, GroundY));
+            _horseFallTexture,
+            new Vector2(100, GroundY));
 
-        // Create the level with obstacles
         _level = new GameLevel(
             _obstacleLogTexture,
             _obstacleRockTexture,
@@ -119,7 +134,7 @@ public class HorseRunnerGame : Game
         switch (_state)
         {
             case GameState.Title:
-                if (keyState.IsKeyDown(Keys.Space) || keyState.IsKeyDown(Keys.Enter))
+                if (IsKeyPressed(keyState, Keys.Space) || IsKeyPressed(keyState, Keys.Enter))
                     _state = GameState.Playing;
                 break;
 
@@ -128,10 +143,17 @@ public class HorseRunnerGame : Game
                 break;
 
             case GameState.Won:
-            case GameState.GameOver:
-                if (keyState.IsKeyDown(Keys.R))
+                _appleRewardTimer += dt;
+                if (_appleRewardTimer > AppleRewardDuration &&
+                    (IsKeyPressed(keyState, Keys.R) || IsKeyPressed(keyState, Keys.Space) || IsKeyPressed(keyState, Keys.Enter)))
+                {
                     StartNewGame();
-                if (keyState.IsKeyDown(Keys.Space) || keyState.IsKeyDown(Keys.Enter))
+                    _state = GameState.Playing;
+                }
+                break;
+
+            case GameState.GameOver:
+                if (IsKeyPressed(keyState, Keys.R) || IsKeyPressed(keyState, Keys.Space) || IsKeyPressed(keyState, Keys.Enter))
                 {
                     StartNewGame();
                     _state = GameState.Playing;
@@ -139,52 +161,69 @@ public class HorseRunnerGame : Game
                 break;
         }
 
+        _prevKeyState = keyState;
         base.Update(gameTime);
+    }
+
+    private bool IsKeyPressed(KeyboardState current, Keys key)
+    {
+        return current.IsKeyDown(key) && _prevKeyState.IsKeyUp(key);
     }
 
     private void UpdatePlaying(KeyboardState keyState, float dt)
     {
         _gameTimer += dt;
-        _scrollOffset += _scrollSpeed * dt;
 
-        // Player input: Space or Up to jump
+        // Only scroll when player is not in fall state
+        if (!_player.IsFalling)
+            _scrollOffset += _scrollSpeed * dt;
+
+        // Player input
         if (keyState.IsKeyDown(Keys.Space) || keyState.IsKeyDown(Keys.Up))
             _player.Jump();
 
         _player.Update(dt);
 
+        // Check if player is dead (no lives)
+        if (_player.IsDead)
+        {
+            _state = GameState.GameOver;
+            return;
+        }
+
         // Update obstacles
         bool allCleared = true;
         foreach (var obstacle in _obstacles)
         {
-            obstacle.Update(_scrollSpeed, dt);
+            if (!_player.IsFalling)
+                obstacle.Update(_scrollSpeed, dt);
 
             if (!obstacle.IsCleared && !obstacle.IsApple)
                 allCleared = false;
 
             // Check collision
-            if (!obstacle.IsPassed && !obstacle.IsCleared)
+            if (!obstacle.IsPassed && !obstacle.IsCleared && obstacle.IsActive)
             {
                 if (_player.GetBounds().Intersects(obstacle.GetBounds()))
                 {
-                    if (_player.IsJumping && _player.Velocity.Y <= 0)
+                    if (obstacle.IsApple)
                     {
-                        // Successfully clearing the obstacle (jumping over it)
+                        // Collect the apple
                         obstacle.IsCleared = true;
-                        if (obstacle.IsApple)
-                        {
-                            _appleCollected = true;
-                            _score += 50;
-                        }
-                        else
-                        {
-                            _score += 10;
-                        }
+                        _appleCollected = true;
+                        _score += 50;
                     }
-                    else if (!_player.IsJumping)
+                    else if (_player.IsJumping)
                     {
-                        // Hit the obstacle on the ground
-                        obstacle.IsPassed = true; // mark as passed but not cleared
+                        // Successfully clearing the obstacle while jumping
+                        obstacle.IsCleared = true;
+                        _score += 10;
+                    }
+                    else if (!_player.IsInvincible && !_player.IsFalling)
+                    {
+                        // Hit obstacle on the ground - rider falls off!
+                        _player.TriggerFall();
+                        obstacle.IsPassed = true;
                     }
                 }
             }
@@ -197,7 +236,7 @@ public class HorseRunnerGame : Game
             }
         }
 
-        // Check if the apple should appear (all non-apple obstacles cleared)
+        // Activate apple when all obstacles cleared
         if (allCleared)
         {
             foreach (var obstacle in _obstacles)
@@ -207,9 +246,12 @@ public class HorseRunnerGame : Game
             }
         }
 
-        // Win condition: apple collected
+        // Win condition
         if (_appleCollected)
+        {
             _state = GameState.Won;
+            _appleRewardTimer = 0f;
+        }
 
         // Time's up
         if (_gameTimer >= GameDuration)
@@ -218,14 +260,11 @@ public class HorseRunnerGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.Clear(new Color(135, 200, 135)); // light green
+        GraphicsDevice.Clear(new Color(135, 200, 135));
 
         _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
 
-        // Draw parallax forest background
         DrawBackground();
-
-        // Draw ground
         DrawGround();
 
         switch (_state)
@@ -252,7 +291,6 @@ public class HorseRunnerGame : Game
 
     private void DrawBackground()
     {
-        // Tile the forest background with parallax (slower scroll)
         float bgScroll = _scrollOffset * 0.3f;
         int bgWidth = _forestBgTexture.Width;
         int startX = -(int)(bgScroll % bgWidth);
@@ -283,9 +321,7 @@ public class HorseRunnerGame : Game
     {
         // Draw obstacles
         foreach (var obstacle in _obstacles)
-        {
             obstacle.Draw(_spriteBatch);
-        }
 
         // Draw player
         _player.Draw(_spriteBatch);
@@ -296,34 +332,45 @@ public class HorseRunnerGame : Game
 
     private void DrawHUD()
     {
-        // Score bar background
-        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, 32), new Color(0, 0, 0, 150));
+        // HUD background bar
+        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, 36), new Color(0, 0, 0, 180));
 
-        // We can't easily draw text without a SpriteFont loaded.
-        // The score and timer are shown via simple bar indicators.
+        // Lives (hearts)
+        for (int i = 0; i < _player.Lives; i++)
+        {
+            _spriteBatch.Draw(_heartTexture,
+                new Rectangle(10 + i * 28, 8, 24, 22),
+                Color.White);
+        }
+        // Grey hearts for lost lives
+        for (int i = _player.Lives; i < 3; i++)
+        {
+            _spriteBatch.Draw(_heartTexture,
+                new Rectangle(10 + i * 28, 8, 24, 22),
+                Color.DarkGray * 0.5f);
+        }
 
-        // Score indicator: green bar
-        int scoreBarWidth = Math.Min(_score * 3, 300);
-        _spriteBatch.Draw(_pixel, new Rectangle(10, 8, scoreBarWidth, 16), Color.LimeGreen);
+        // Score text
+        string scoreText = $"Score: {_score}";
+        _spriteBatch.DrawString(_gameFont, scoreText,
+            new Vector2(100, 6), Color.White);
 
-        // Score text area marker
-        _spriteBatch.Draw(_pixel, new Rectangle(8, 6, 4, 20), Color.White);
+        // Timer
+        float timeLeft = Math.Max(0, GameDuration - _gameTimer);
+        string timerText = $"Time: {timeLeft:F0}s";
+        Color timerColor = timeLeft > 15 ? Color.White : Color.Red;
+        Vector2 timerSize = _gameFont.MeasureString(timerText);
+        _spriteBatch.DrawString(_gameFont, timerText,
+            new Vector2(ScreenWidth - timerSize.X - 10, 6), timerColor);
 
-        // Timer bar: shows remaining time
-        float timeRatio = Math.Max(0, 1f - _gameTimer / GameDuration);
-        int timerBarWidth = (int)(200 * timeRatio);
-        Color timerColor = timeRatio > 0.25f ? Color.CornflowerBlue : Color.Red;
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth - 210, 8, timerBarWidth, 16), timerColor);
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth - 212, 6, 4, 20), Color.White);
-
-        // Obstacle progress: small dots for each obstacle
-        int dotX = ScreenWidth / 2 - (_obstacles.Count * 12) / 2;
+        // Obstacle progress dots
+        int dotX = ScreenWidth / 2 - (_obstacles.Count * 14) / 2;
         foreach (var obs in _obstacles)
         {
             if (obs.IsApple) continue;
             Color dotColor = obs.IsCleared ? Color.Gold : (obs.IsPassed ? Color.DarkRed : Color.Gray);
-            _spriteBatch.Draw(_pixel, new Rectangle(dotX, 10, 8, 12), dotColor);
-            dotX += 12;
+            _spriteBatch.Draw(_pixel, new Rectangle(dotX, 12, 10, 14), dotColor);
+            dotX += 14;
         }
     }
 
@@ -332,57 +379,193 @@ public class HorseRunnerGame : Game
         // Dark overlay
         _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 180));
 
-        // Title "banner"
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 200, 100, 400, 60), new Color(80, 50, 20));
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 196, 104, 392, 52), new Color(139, 90, 43));
+        // Title text
+        string title = "Horse Runner";
+        Vector2 titleSize = _titleFont.MeasureString(title);
+        float titleX = (ScreenWidth - titleSize.X) / 2;
 
-        // Horse icon in center
+        // Title banner background
+        _spriteBatch.Draw(_pixel,
+            new Rectangle((int)titleX - 20, 70, (int)titleSize.X + 40, (int)titleSize.Y + 20),
+            new Color(80, 50, 20));
+        _spriteBatch.Draw(_pixel,
+            new Rectangle((int)titleX - 16, 74, (int)titleSize.X + 32, (int)titleSize.Y + 12),
+            new Color(139, 90, 43));
+
+        _spriteBatch.DrawString(_titleFont, title,
+            new Vector2(titleX, 78), Color.Gold);
+
+        // Subtitle
+        string subtitle = "Forest Adventure";
+        Vector2 subSize = _gameFont.MeasureString(subtitle);
+        _spriteBatch.DrawString(_gameFont, subtitle,
+            new Vector2((ScreenWidth - subSize.X) / 2, 130), new Color(200, 180, 140));
+
+        // Horse preview
         _spriteBatch.Draw(_horseRunTexture,
-            new Rectangle(ScreenWidth / 2 - 48, 200, 96, 64),
+            new Rectangle(ScreenWidth / 2 - 64, 180, 128, 96),
+            new Rectangle(0, 0, 128, 96),
             Color.White);
 
-        // "Press SPACE" indicator
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 80, 320, 160, 30), new Color(60, 120, 60));
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 76, 324, 152, 22), new Color(80, 160, 80));
+        // Instructions
+        string[] instructions = {
+            "Jump over obstacles in the forest!",
+            "Clear all obstacles to win the apple!",
+            "",
+            "SPACE or UP - Jump",
+            "You have 3 lives",
+            "",
+            "Press SPACE to start!"
+        };
+
+        float yPos = 290;
+        foreach (string line in instructions)
+        {
+            if (line.Length == 0) { yPos += 10; continue; }
+            Vector2 lineSize = _gameFont.MeasureString(line);
+            Color lineColor = line.StartsWith("Press") ? Color.LimeGreen : Color.White;
+            _spriteBatch.DrawString(_gameFont, line,
+                new Vector2((ScreenWidth - lineSize.X) / 2, yPos), lineColor);
+            yPos += 24;
+        }
     }
 
     private void DrawWinScreen()
     {
-        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 150));
+        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 180));
 
-        // Victory banner
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 180, 150, 360, 50), Color.Gold);
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 176, 154, 352, 42), new Color(255, 215, 0));
+        // Victory title
+        string title = "You Win!";
+        Vector2 titleSize = _titleFont.MeasureString(title);
+        float titleX = (ScreenWidth - titleSize.X) / 2;
 
-        // Apple icon
-        _spriteBatch.Draw(_appleTexture,
-            new Rectangle(ScreenWidth / 2 - 24, 220, 48, 48),
+        _spriteBatch.Draw(_pixel,
+            new Rectangle((int)titleX - 20, 60, (int)titleSize.X + 40, (int)titleSize.Y + 20),
+            Color.Gold);
+        _spriteBatch.DrawString(_titleFont, title,
+            new Vector2(titleX, 68), new Color(80, 50, 20));
+
+        // Apple reward animation: horse eating the apple
+        float animProgress = Math.Min(_appleRewardTimer / AppleRewardDuration, 1f);
+
+        // Draw the horse standing still
+        _spriteBatch.Draw(_horseRunTexture,
+            new Rectangle(ScreenWidth / 2 - 100, 170, 128, 96),
+            new Rectangle(0, 0, 128, 96),
             Color.White);
 
-        // Score display bar
-        int scoreWidth = Math.Min(_score * 2, 300);
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 150, 290, 300, 20), new Color(50, 50, 50));
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 150, 290, scoreWidth, 20), Color.LimeGreen);
+        // Animate apple moving toward horse's mouth
+        float appleStartX = ScreenWidth / 2 + 80;
+        float appleEndX = ScreenWidth / 2 + 10;
+        float appleStartY = 140;
+        float appleEndY = 185;
+        float appleX = MathHelper.Lerp(appleStartX, appleEndX, animProgress);
+        float appleY = MathHelper.Lerp(appleStartY, appleEndY, animProgress);
+
+        if (animProgress < 0.9f)
+        {
+            // Apple still visible, floating toward horse
+            float bob = (float)Math.Sin(_appleRewardTimer * 4) * 5;
+            _spriteBatch.Draw(_appleTexture,
+                new Rectangle((int)appleX, (int)(appleY + bob), 48, 48),
+                Color.White);
+        }
+        else
+        {
+            // Apple eaten - show "Yum!" text
+            string yum = "Yum!";
+            Vector2 yumSize = _titleFont.MeasureString(yum);
+            _spriteBatch.DrawString(_titleFont, yum,
+                new Vector2(ScreenWidth / 2 + 20, 170), Color.LimeGreen);
+        }
+
+        // Score
+        string scoreText = $"Final Score: {_score}";
+        Vector2 scoreSize = _gameFont.MeasureString(scoreText);
+        _spriteBatch.DrawString(_gameFont, scoreText,
+            new Vector2((ScreenWidth - scoreSize.X) / 2, 290), Color.White);
+
+        // Obstacles cleared count
+        int cleared = 0;
+        int total = 0;
+        foreach (var obs in _obstacles)
+        {
+            if (obs.IsApple) continue;
+            total++;
+            if (obs.IsCleared) cleared++;
+        }
+        string clearedText = $"Obstacles Cleared: {cleared}/{total}";
+        Vector2 clearedSize = _gameFont.MeasureString(clearedText);
+        _spriteBatch.DrawString(_gameFont, clearedText,
+            new Vector2((ScreenWidth - clearedSize.X) / 2, 320), Color.Gold);
+
+        // Lives remaining
+        string livesText = $"Lives Remaining: {_player.Lives}/3";
+        Vector2 livesSize = _gameFont.MeasureString(livesText);
+        _spriteBatch.DrawString(_gameFont, livesText,
+            new Vector2((ScreenWidth - livesSize.X) / 2, 350), Color.LightCoral);
 
         // Restart prompt
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 80, 340, 160, 24), new Color(60, 120, 60));
+        if (_appleRewardTimer > AppleRewardDuration)
+        {
+            string restartText = "Press SPACE to play again!";
+            Vector2 restartSize = _gameFont.MeasureString(restartText);
+            _spriteBatch.DrawString(_gameFont, restartText,
+                new Vector2((ScreenWidth - restartSize.X) / 2, 400), Color.LimeGreen);
+        }
     }
 
     private void DrawGameOverScreen()
     {
-        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 150));
+        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 180));
 
-        // Game over banner
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 180, 150, 360, 50), Color.DarkRed);
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 176, 154, 352, 42), new Color(180, 30, 30));
+        // Game over title
+        string reason = _player.IsDead ? "No Lives Left!" : "Time's Up!";
+        string title = "Game Over";
+        Vector2 titleSize = _titleFont.MeasureString(title);
+        float titleX = (ScreenWidth - titleSize.X) / 2;
 
-        // Score display
-        int scoreWidth = Math.Min(_score * 2, 300);
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 150, 240, 300, 20), new Color(50, 50, 50));
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 150, 240, scoreWidth, 20), Color.Orange);
+        _spriteBatch.Draw(_pixel,
+            new Rectangle((int)titleX - 20, 100, (int)titleSize.X + 40, (int)titleSize.Y + 20),
+            Color.DarkRed);
+        _spriteBatch.DrawString(_titleFont, title,
+            new Vector2(titleX, 108), Color.White);
 
-        // Restart prompt
-        _spriteBatch.Draw(_pixel, new Rectangle(ScreenWidth / 2 - 80, 300, 160, 24), new Color(60, 120, 60));
+        // Reason
+        Vector2 reasonSize = _gameFont.MeasureString(reason);
+        _spriteBatch.DrawString(_gameFont, reason,
+            new Vector2((ScreenWidth - reasonSize.X) / 2, 160), Color.Orange);
+
+        // Fallen horse
+        _spriteBatch.Draw(_horseFallTexture,
+            new Rectangle(ScreenWidth / 2 - 64, 190, 128, 96),
+            Color.White);
+
+        // Score
+        string scoreText = $"Final Score: {_score}";
+        Vector2 scoreSize = _gameFont.MeasureString(scoreText);
+        _spriteBatch.DrawString(_gameFont, scoreText,
+            new Vector2((ScreenWidth - scoreSize.X) / 2, 300), Color.White);
+
+        // Obstacles info
+        int cleared = 0;
+        int total = 0;
+        foreach (var obs in _obstacles)
+        {
+            if (obs.IsApple) continue;
+            total++;
+            if (obs.IsCleared) cleared++;
+        }
+        string clearedText = $"Obstacles Cleared: {cleared}/{total}";
+        Vector2 clearedSize = _gameFont.MeasureString(clearedText);
+        _spriteBatch.DrawString(_gameFont, clearedText,
+            new Vector2((ScreenWidth - clearedSize.X) / 2, 330), Color.Gold);
+
+        // Restart
+        string restartText = "Press SPACE to try again!";
+        Vector2 restartSize = _gameFont.MeasureString(restartText);
+        _spriteBatch.DrawString(_gameFont, restartText,
+            new Vector2((ScreenWidth - restartSize.X) / 2, 390), Color.LimeGreen);
     }
 
     protected override void UnloadContent()
