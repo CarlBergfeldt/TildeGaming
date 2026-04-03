@@ -27,8 +27,6 @@ public class HorseRunnerGame : Game
     private Texture2D _groundTexture;
     private Texture2D _pixel; // for drawing simple shapes/UI
 
-    // Font (we'll draw text using a pixel texture since we avoid extra deps)
-    private SpriteFont _font;
 
     // Game state
     private enum GameState { Title, Playing, Won, GameOver }
