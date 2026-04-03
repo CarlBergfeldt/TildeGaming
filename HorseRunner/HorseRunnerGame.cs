@@ -23,10 +23,12 @@ public class HorseRunnerGame : Game
     private Texture2D _obstacleLogTexture;
     private Texture2D _obstacleRockTexture;
     private Texture2D _obstacleBushTexture;
+    private Texture2D _trollTexture;
     private Texture2D _appleTexture;
     private Texture2D _forestBgTexture;
     private Texture2D _groundTexture;
     private Texture2D _heartTexture;
+    private Texture2D _goldMedalTexture;
     private Texture2D _pixel;
 
     // Fonts
@@ -45,7 +47,7 @@ public class HorseRunnerGame : Game
 
     // Apple reward animation
     private float _appleRewardTimer;
-    private const float AppleRewardDuration = 3f;
+    private const float AppleRewardDuration = 6f;
 
     // Input debounce
     private KeyboardState _prevKeyState;
@@ -83,10 +85,12 @@ public class HorseRunnerGame : Game
         _obstacleLogTexture = Content.Load<Texture2D>("Sprites/obstacle_log");
         _obstacleRockTexture = Content.Load<Texture2D>("Sprites/obstacle_rock");
         _obstacleBushTexture = Content.Load<Texture2D>("Sprites/obstacle_bush");
+        _trollTexture = Content.Load<Texture2D>("Sprites/troll");
         _appleTexture = Content.Load<Texture2D>("Sprites/apple");
         _forestBgTexture = Content.Load<Texture2D>("Sprites/forest_bg");
         _groundTexture = Content.Load<Texture2D>("Sprites/ground");
         _heartTexture = Content.Load<Texture2D>("Sprites/heart");
+        _goldMedalTexture = Content.Load<Texture2D>("Sprites/gold_medal");
 
         _gameFont = Content.Load<SpriteFont>("GameFont");
         _titleFont = Content.Load<SpriteFont>("TitleFont");
@@ -116,6 +120,7 @@ public class HorseRunnerGame : Game
             _obstacleLogTexture,
             _obstacleRockTexture,
             _obstacleBushTexture,
+            _trollTexture,
             _appleTexture,
             _scrollSpeed,
             GameDuration);
@@ -170,11 +175,22 @@ public class HorseRunnerGame : Game
         return current.IsKeyDown(key) && _prevKeyState.IsKeyUp(key);
     }
 
+    private void GetObstacleCounts(out int cleared, out int total)
+    {
+        cleared = 0;
+        total = 0;
+        foreach (var obs in _obstacles)
+        {
+            if (obs.IsApple) continue;
+            total++;
+            if (obs.IsCleared) cleared++;
+        }
+    }
+
     private void UpdatePlaying(KeyboardState keyState, float dt)
     {
         _gameTimer += dt;
 
-        // Only scroll when player is not in fall state
         if (!_player.IsFalling)
             _scrollOffset += _scrollSpeed * dt;
 
@@ -184,60 +200,68 @@ public class HorseRunnerGame : Game
 
         _player.Update(dt);
 
-        // Check if player is dead (no lives)
         if (_player.IsDead)
         {
             _state = GameState.GameOver;
             return;
         }
 
-        // Update obstacles
-        bool allCleared = true;
+        // Update obstacles and check collisions
         foreach (var obstacle in _obstacles)
         {
             if (!_player.IsFalling)
                 obstacle.Update(_scrollSpeed, dt);
 
-            if (!obstacle.IsCleared && !obstacle.IsApple)
-                allCleared = false;
-
-            // Check collision
             if (!obstacle.IsPassed && !obstacle.IsCleared && obstacle.IsActive)
             {
-                if (_player.GetBounds().Intersects(obstacle.GetBounds()))
+                Rectangle playerBounds = _player.GetBounds();
+                Rectangle obstacleBounds = obstacle.GetBounds();
+
+                // Track if player is airborne while horizontally overlapping the obstacle
+                bool horizontalOverlap = playerBounds.Right > obstacleBounds.Left &&
+                                         playerBounds.Left < obstacleBounds.Right;
+                if (horizontalOverlap && _player.IsJumping)
+                    obstacle.PlayerWasAirborne = true;
+
+                if (playerBounds.Intersects(obstacleBounds))
                 {
                     if (obstacle.IsApple)
                     {
-                        // Collect the apple
                         obstacle.IsCleared = true;
                         _appleCollected = true;
                         _score += 50;
                     }
-                    else if (_player.IsJumping)
-                    {
-                        // Successfully clearing the obstacle while jumping
-                        obstacle.IsCleared = true;
-                        _score += 10;
-                    }
                     else if (!_player.IsInvincible && !_player.IsFalling)
                     {
-                        // Hit obstacle on the ground - rider falls off!
+                        // Physical collision - rider falls off!
                         _player.TriggerFall();
                         obstacle.IsPassed = true;
                     }
                 }
             }
 
-            // Mark as passed if scrolled past player
-            if (!obstacle.IsPassed && !obstacle.IsCleared &&
+            // Check if obstacle has scrolled past the player
+            if (!obstacle.IsPassed && !obstacle.IsCleared && !obstacle.IsApple &&
                 obstacle.Position.X + obstacle.Width < _player.Position.X)
             {
-                obstacle.IsPassed = true;
+                if (obstacle.PlayerWasAirborne)
+                {
+                    // Player jumped over it successfully!
+                    obstacle.IsCleared = true;
+                    _score += obstacle.IsTroll ? 20 : 10;
+                }
+                else
+                {
+                    // Obstacle passed without jumping over it (shouldn't normally
+                    // happen without collision, but just in case)
+                    obstacle.IsPassed = true;
+                }
             }
         }
 
-        // Activate apple when all obstacles cleared
-        if (allCleared)
+        // Check if >= 75% obstacles cleared -> activate apple
+        GetObstacleCounts(out int cleared, out int total);
+        if (total > 0 && (float)cleared / total >= 0.75f)
         {
             foreach (var obstacle in _obstacles)
             {
@@ -319,40 +343,27 @@ public class HorseRunnerGame : Game
 
     private void DrawGameplay()
     {
-        // Draw obstacles
         foreach (var obstacle in _obstacles)
             obstacle.Draw(_spriteBatch);
 
-        // Draw player
         _player.Draw(_spriteBatch);
-
-        // Draw HUD
         DrawHUD();
     }
 
     private void DrawHUD()
     {
-        // HUD background bar
         _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, 36), new Color(0, 0, 0, 180));
 
         // Lives (hearts)
-        for (int i = 0; i < _player.Lives; i++)
+        for (int i = 0; i < 3; i++)
         {
+            Color heartColor = i < _player.Lives ? Color.White : Color.DarkGray * 0.5f;
             _spriteBatch.Draw(_heartTexture,
-                new Rectangle(10 + i * 28, 8, 24, 22),
-                Color.White);
-        }
-        // Grey hearts for lost lives
-        for (int i = _player.Lives; i < 3; i++)
-        {
-            _spriteBatch.Draw(_heartTexture,
-                new Rectangle(10 + i * 28, 8, 24, 22),
-                Color.DarkGray * 0.5f);
+                new Rectangle(10 + i * 28, 8, 24, 22), heartColor);
         }
 
-        // Score text
-        string scoreText = $"Score: {_score}";
-        _spriteBatch.DrawString(_gameFont, scoreText,
+        // Score
+        _spriteBatch.DrawString(_gameFont, $"Score: {_score}",
             new Vector2(100, 6), Color.White);
 
         // Timer
@@ -364,34 +375,42 @@ public class HorseRunnerGame : Game
             new Vector2(ScreenWidth - timerSize.X - 10, 6), timerColor);
 
         // Obstacle progress dots
-        int dotX = ScreenWidth / 2 - (_obstacles.Count * 14) / 2;
+        GetObstacleCounts(out int cleared, out int total);
+        int dotX = ScreenWidth / 2 - (total * 14) / 2;
         foreach (var obs in _obstacles)
         {
             if (obs.IsApple) continue;
             Color dotColor = obs.IsCleared ? Color.Gold : (obs.IsPassed ? Color.DarkRed : Color.Gray);
-            _spriteBatch.Draw(_pixel, new Rectangle(dotX, 12, 10, 14), dotColor);
+            // Troll dot is slightly bigger
+            int dotSize = obs.IsTroll ? 14 : 10;
+            int dotY = obs.IsTroll ? 10 : 12;
+            _spriteBatch.Draw(_pixel, new Rectangle(dotX, dotY, dotSize, dotSize), dotColor);
             dotX += 14;
         }
+
+        // Show 75% threshold line
+        string pctText = $"{cleared}/{total}";
+        Vector2 pctSize = _gameFont.MeasureString(pctText);
+        float pctX = ScreenWidth / 2 + (total * 14) / 2 + 6;
+        _spriteBatch.DrawString(_gameFont, pctText,
+            new Vector2(pctX, 6), cleared >= (int)(total * 0.75f) ? Color.LimeGreen : Color.Gray);
     }
 
     private void DrawTitle()
     {
-        // Dark overlay
         _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 180));
 
-        // Title text
+        // Title
         string title = "Horse Runner";
         Vector2 titleSize = _titleFont.MeasureString(title);
         float titleX = (ScreenWidth - titleSize.X) / 2;
 
-        // Title banner background
         _spriteBatch.Draw(_pixel,
             new Rectangle((int)titleX - 20, 70, (int)titleSize.X + 40, (int)titleSize.Y + 20),
             new Color(80, 50, 20));
         _spriteBatch.Draw(_pixel,
             new Rectangle((int)titleX - 16, 74, (int)titleSize.X + 32, (int)titleSize.Y + 12),
             new Color(139, 90, 43));
-
         _spriteBatch.DrawString(_titleFont, title,
             new Vector2(titleX, 78), Color.Gold);
 
@@ -403,14 +422,15 @@ public class HorseRunnerGame : Game
 
         // Horse preview
         _spriteBatch.Draw(_horseRunTexture,
-            new Rectangle(ScreenWidth / 2 - 64, 180, 128, 96),
+            new Rectangle(ScreenWidth / 2 - 64, 170, 128, 96),
             new Rectangle(0, 0, 128, 96),
             Color.White);
 
         // Instructions
         string[] instructions = {
             "Jump over obstacles in the forest!",
-            "Clear all obstacles to win the apple!",
+            "Clear 75% of obstacles to earn the apple!",
+            "Watch out for the troll at the end!",
             "",
             "SPACE or UP - Jump",
             "You have 3 lives",
@@ -418,12 +438,13 @@ public class HorseRunnerGame : Game
             "Press SPACE to start!"
         };
 
-        float yPos = 290;
+        float yPos = 280;
         foreach (string line in instructions)
         {
-            if (line.Length == 0) { yPos += 10; continue; }
+            if (line.Length == 0) { yPos += 8; continue; }
             Vector2 lineSize = _gameFont.MeasureString(line);
-            Color lineColor = line.StartsWith("Press") ? Color.LimeGreen : Color.White;
+            Color lineColor = line.StartsWith("Press") ? Color.LimeGreen :
+                              line.Contains("troll") ? Color.Orange : Color.White;
             _spriteBatch.DrawString(_gameFont, line,
                 new Vector2((ScreenWidth - lineSize.X) / 2, yPos), lineColor);
             yPos += 24;
@@ -440,72 +461,102 @@ public class HorseRunnerGame : Game
         float titleX = (ScreenWidth - titleSize.X) / 2;
 
         _spriteBatch.Draw(_pixel,
-            new Rectangle((int)titleX - 20, 60, (int)titleSize.X + 40, (int)titleSize.Y + 20),
+            new Rectangle((int)titleX - 20, 40, (int)titleSize.X + 40, (int)titleSize.Y + 20),
             Color.Gold);
         _spriteBatch.DrawString(_titleFont, title,
-            new Vector2(titleX, 68), new Color(80, 50, 20));
+            new Vector2(titleX, 48), new Color(80, 50, 20));
 
-        // Apple reward animation: horse eating the apple
         float animProgress = Math.Min(_appleRewardTimer / AppleRewardDuration, 1f);
 
-        // Draw the horse standing still
+        // --- Apple reward scene ---
+        int horseX = ScreenWidth / 2 - 100;
+        int horseY = 140;
+
+        // Draw horse standing
         _spriteBatch.Draw(_horseRunTexture,
-            new Rectangle(ScreenWidth / 2 - 100, 170, 128, 96),
+            new Rectangle(horseX, horseY, 128, 96),
             new Rectangle(0, 0, 128, 96),
             Color.White);
 
-        // Animate apple moving toward horse's mouth
-        float appleStartX = ScreenWidth / 2 + 80;
-        float appleEndX = ScreenWidth / 2 + 10;
-        float appleStartY = 140;
-        float appleEndY = 185;
-        float appleX = MathHelper.Lerp(appleStartX, appleEndX, animProgress);
-        float appleY = MathHelper.Lerp(appleStartY, appleEndY, animProgress);
+        // Phase 1 (0-50%): Apple floats toward horse's mouth
+        // Phase 2 (50-70%): Horse eats apple, "Yum!" appears
+        // Phase 3 (70-100%): Gold medal descends onto rider
 
-        if (animProgress < 0.9f)
+        if (animProgress < 0.5f)
         {
-            // Apple still visible, floating toward horse
-            float bob = (float)Math.Sin(_appleRewardTimer * 4) * 5;
+            // Apple floating toward horse
+            float phase = animProgress / 0.5f;
+            float appleX = MathHelper.Lerp(horseX + 180, horseX + 100, phase);
+            float appleY = MathHelper.Lerp(110, horseY + 15, phase);
+            float bob = (float)Math.Sin(_appleRewardTimer * 5) * 4;
             _spriteBatch.Draw(_appleTexture,
                 new Rectangle((int)appleX, (int)(appleY + bob), 48, 48),
                 Color.White);
         }
-        else
+        else if (animProgress < 0.7f)
         {
-            // Apple eaten - show "Yum!" text
+            // Apple eaten - Yum!
             string yum = "Yum!";
             Vector2 yumSize = _titleFont.MeasureString(yum);
+            float yumAlpha = Math.Min(1f, (animProgress - 0.5f) / 0.1f);
             _spriteBatch.DrawString(_titleFont, yum,
-                new Vector2(ScreenWidth / 2 + 20, 170), Color.LimeGreen);
+                new Vector2(horseX + 120, horseY), Color.LimeGreen * yumAlpha);
+        }
+        else
+        {
+            // Gold medal descends onto rider
+            float medalPhase = (animProgress - 0.7f) / 0.3f;
+            float medalTargetX = horseX + 40;
+            float medalTargetY = horseY + 20;
+            float medalStartY = horseY - 80;
+            float medalY = MathHelper.Lerp(medalStartY, medalTargetY, Math.Min(medalPhase * 1.5f, 1f));
+            float medalX = medalTargetX;
+
+            // Sparkle effect
+            if (medalPhase > 0.5f)
+            {
+                float sparkle = (float)Math.Sin(_appleRewardTimer * 8);
+                Color sparkleColor = Color.Gold * (0.3f + sparkle * 0.3f);
+                _spriteBatch.Draw(_pixel,
+                    new Rectangle((int)medalX - 8, (int)medalY - 8, 56, 64),
+                    sparkleColor);
+            }
+
+            _spriteBatch.Draw(_goldMedalTexture,
+                new Rectangle((int)medalX, (int)medalY, 40, 48),
+                Color.White);
+
+            // "Gold Medal!" text
+            if (medalPhase > 0.6f)
+            {
+                string medalText = "Gold Medal!";
+                Vector2 medalSize = _gameFont.MeasureString(medalText);
+                float textAlpha = Math.Min(1f, (medalPhase - 0.6f) / 0.2f);
+                _spriteBatch.DrawString(_gameFont, medalText,
+                    new Vector2((ScreenWidth - medalSize.X) / 2, horseY + 100),
+                    Color.Gold * textAlpha);
+            }
         }
 
-        // Score
+        // Score and stats (always visible)
+        GetObstacleCounts(out int cleared, out int total);
+
         string scoreText = $"Final Score: {_score}";
         Vector2 scoreSize = _gameFont.MeasureString(scoreText);
         _spriteBatch.DrawString(_gameFont, scoreText,
-            new Vector2((ScreenWidth - scoreSize.X) / 2, 290), Color.White);
+            new Vector2((ScreenWidth - scoreSize.X) / 2, 270), Color.White);
 
-        // Obstacles cleared count
-        int cleared = 0;
-        int total = 0;
-        foreach (var obs in _obstacles)
-        {
-            if (obs.IsApple) continue;
-            total++;
-            if (obs.IsCleared) cleared++;
-        }
         string clearedText = $"Obstacles Cleared: {cleared}/{total}";
         Vector2 clearedSize = _gameFont.MeasureString(clearedText);
         _spriteBatch.DrawString(_gameFont, clearedText,
-            new Vector2((ScreenWidth - clearedSize.X) / 2, 320), Color.Gold);
+            new Vector2((ScreenWidth - clearedSize.X) / 2, 300), Color.Gold);
 
-        // Lives remaining
         string livesText = $"Lives Remaining: {_player.Lives}/3";
         Vector2 livesSize = _gameFont.MeasureString(livesText);
         _spriteBatch.DrawString(_gameFont, livesText,
-            new Vector2((ScreenWidth - livesSize.X) / 2, 350), Color.LightCoral);
+            new Vector2((ScreenWidth - livesSize.X) / 2, 330), Color.LightCoral);
 
-        // Restart prompt
+        // Restart prompt after animation
         if (_appleRewardTimer > AppleRewardDuration)
         {
             string restartText = "Press SPACE to play again!";
@@ -519,7 +570,6 @@ public class HorseRunnerGame : Game
     {
         _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 180));
 
-        // Game over title
         string reason = _player.IsDead ? "No Lives Left!" : "Time's Up!";
         string title = "Game Over";
         Vector2 titleSize = _titleFont.MeasureString(title);
@@ -531,41 +581,40 @@ public class HorseRunnerGame : Game
         _spriteBatch.DrawString(_titleFont, title,
             new Vector2(titleX, 108), Color.White);
 
-        // Reason
         Vector2 reasonSize = _gameFont.MeasureString(reason);
         _spriteBatch.DrawString(_gameFont, reason,
             new Vector2((ScreenWidth - reasonSize.X) / 2, 160), Color.Orange);
 
-        // Fallen horse
         _spriteBatch.Draw(_horseFallTexture,
             new Rectangle(ScreenWidth / 2 - 64, 190, 128, 96),
             Color.White);
 
-        // Score
+        GetObstacleCounts(out int cleared, out int total);
+
         string scoreText = $"Final Score: {_score}";
         Vector2 scoreSize = _gameFont.MeasureString(scoreText);
         _spriteBatch.DrawString(_gameFont, scoreText,
             new Vector2((ScreenWidth - scoreSize.X) / 2, 300), Color.White);
 
-        // Obstacles info
-        int cleared = 0;
-        int total = 0;
-        foreach (var obs in _obstacles)
-        {
-            if (obs.IsApple) continue;
-            total++;
-            if (obs.IsCleared) cleared++;
-        }
         string clearedText = $"Obstacles Cleared: {cleared}/{total}";
         Vector2 clearedSize = _gameFont.MeasureString(clearedText);
         _spriteBatch.DrawString(_gameFont, clearedText,
             new Vector2((ScreenWidth - clearedSize.X) / 2, 330), Color.Gold);
 
-        // Restart
+        // Show how close they were to 75%
+        int needed = (int)Math.Ceiling(total * 0.75f);
+        if (cleared < needed)
+        {
+            string neededText = $"Needed {needed} cleared for the apple!";
+            Vector2 neededSize = _gameFont.MeasureString(neededText);
+            _spriteBatch.DrawString(_gameFont, neededText,
+                new Vector2((ScreenWidth - neededSize.X) / 2, 360), Color.Orange);
+        }
+
         string restartText = "Press SPACE to try again!";
         Vector2 restartSize = _gameFont.MeasureString(restartText);
         _spriteBatch.DrawString(_gameFont, restartText,
-            new Vector2((ScreenWidth - restartSize.X) / 2, 390), Color.LimeGreen);
+            new Vector2((ScreenWidth - restartSize.X) / 2, 400), Color.LimeGreen);
     }
 
     protected override void UnloadContent()
