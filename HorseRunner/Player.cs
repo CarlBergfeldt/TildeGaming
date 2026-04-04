@@ -13,7 +13,7 @@ public class Player
     public Vector2 Position;
     public Vector2 Velocity;
 
-    // Animation - new bigger sprite size
+    // Animation - sprite sheet frame size
     private int _frameWidth = 192;
     private int _frameHeight = 140;
     private int _currentFrame;
@@ -21,22 +21,39 @@ public class Player
     private float _frameTimer;
     private float _frameInterval = 0.1f;
 
-    // Physics
+    // =======================================================================
+    // GAMEPLAY TUNING: Jump Physics
+    // - Gravity: how fast the horse falls back down. Lower = floatier jumps,
+    //   higher = snappier jumps. Try 1000-2000.
+    // - JumpForce: initial upward velocity. More negative = higher jump.
+    //   Try -700 (low) to -1100 (very high).
+    // - These two together determine jump height and air time.
+    //   Current settings give a high, forgiving jump arc.
+    // =======================================================================
     private float _groundY;
-    private const float Gravity = 1800f;
-    private const float JumpForce = -800f;
+    private const float Gravity = 1400f;
+    private const float JumpForce = -920f;
     public bool IsJumping { get; private set; }
     private bool _jumpKeyReleased = true;
 
-    // Fall-off state
+    // =======================================================================
+    // GAMEPLAY TUNING: Fall-off & Recovery
+    // - FallDuration: how long the fall animation plays (seconds).
+    //   Longer = more punishment. Try 0.8-2.0.
+    // - InvincibleDuration: how long the player blinks/is invincible after
+    //   recovering. Longer = more forgiving. Try 1.0-3.0.
+    // =======================================================================
     public bool IsFalling { get; private set; }
     private float _fallTimer;
-    private const float FallDuration = 1.5f;
+    private const float FallDuration = 1.2f;
     private float _invincibleTimer;
-    private const float InvincibleDuration = 2.0f;
+    private const float InvincibleDuration = 2.5f;
     public bool IsInvincible => _invincibleTimer > 0;
 
-    // Lives
+    // =======================================================================
+    // GAMEPLAY TUNING: Lives
+    // - Starting lives. More = easier game. Try 1-5.
+    // =======================================================================
     public int Lives { get; set; } = 3;
     public bool IsDead => Lives <= 0;
 
@@ -144,10 +161,17 @@ public class Player
         }
     }
 
+    // =======================================================================
+    // GAMEPLAY TUNING: Player Hitbox
+    // - marginX/marginY shrink the collision box relative to the sprite.
+    //   Larger margins = smaller hitbox = easier to avoid obstacles.
+    //   The player sprite is 192x140, so margin 40/20 gives a 112x100 hitbox.
+    //   Try marginX 20-50, marginY 10-30.
+    // =======================================================================
     public Rectangle GetBounds()
     {
-        int marginX = 30;
-        int marginY = 16;
+        int marginX = 40;
+        int marginY = 20;
         return new Rectangle(
             (int)Position.X + marginX,
             (int)Position.Y + marginY,

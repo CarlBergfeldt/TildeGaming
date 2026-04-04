@@ -24,7 +24,12 @@ public class Obstacle
     public bool PlayerWasAirborne;
     public ObstacleType Type;
 
-    // Troll animation
+    // =======================================================================
+    // GAMEPLAY TUNING: Troll Movement
+    // - _trollMoveSpeed: extra pixels/sec the troll walks toward the player
+    //   on top of the normal scroll speed. Higher = harder to react.
+    //   Try 0 (stationary) to 120 (very aggressive). Current: 50.
+    // =======================================================================
     private int _trollFrameWidth = 80;
     private int _trollFrameHeight = 72;
     private int _trollFrame;
@@ -39,6 +44,17 @@ public class Obstacle
         IsApple = type == ObstacleType.Apple;
         IsTroll = type == ObstacleType.Troll;
 
+        // =======================================================================
+        // GAMEPLAY TUNING: Obstacle Sizes
+        // - Width/Height control the visual size of each obstacle.
+        //   Smaller = easier to jump over. The hitbox (in GetBounds) is even
+        //   smaller than these values due to margins.
+        //
+        // Forest obstacles:  Log 80x52 max, Rock 60x48 max, Bush 72x52 max
+        // Bar obstacles:     100 wide x 70 tall (show jumping fences)
+        // Troll:             80x72 (animated sprite sheet frame size)
+        // Apple:             48x48 (reward, no collision danger)
+        // =======================================================================
         switch (type)
         {
             case ObstacleType.Apple:
@@ -56,7 +72,7 @@ public class Obstacle
             case ObstacleType.BarOxer:
             case ObstacleType.BarTriple:
                 Width = 100;
-                Height = 80;
+                Height = 70;  // slightly shorter than the sprite for easier clearance
                 Position = new Vector2(startX, groundY - Height);
                 break;
             default: // Log, Rock, Bush
@@ -89,25 +105,39 @@ public class Obstacle
         }
     }
 
+    // =======================================================================
+    // GAMEPLAY TUNING: Obstacle Hitbox
+    // - The margin shrinks the collision rectangle relative to the visual size.
+    //   Larger margin = smaller hitbox = easier to clear without touching.
+    //
+    //   Forest obstacles: margin 4 on each side
+    //   Bar obstacles:    margin 10 on each side (generous for fairness)
+    //   Troll:            margin 10 on each side
+    //
+    //   To make the game easier, increase these margins.
+    //   To make it harder, decrease them (minimum 0).
+    // =======================================================================
     public Rectangle GetBounds()
     {
         if (IsTroll)
         {
-            // Slightly smaller hitbox for fairness
-            int margin = 8;
+            int margin = 10;
             return new Rectangle(
                 (int)Position.X + margin, (int)Position.Y + margin,
                 Width - margin * 2, Height - margin * 2);
         }
         if (Type == ObstacleType.BarSingle || Type == ObstacleType.BarOxer || Type == ObstacleType.BarTriple)
         {
-            // Hitbox is the pole area, not the full standard height
-            int margin = 6;
+            int margin = 10;
             return new Rectangle(
                 (int)Position.X + margin, (int)Position.Y + margin,
                 Width - margin * 2, Height - margin * 2);
         }
-        return new Rectangle((int)Position.X, (int)Position.Y, Width, Height);
+        // Forest obstacles (log, rock, bush)
+        int forestMargin = 4;
+        return new Rectangle(
+            (int)Position.X + forestMargin, (int)Position.Y + forestMargin,
+            Width - forestMargin * 2, Height - forestMargin * 2);
     }
 
     public void Draw(SpriteBatch spriteBatch)

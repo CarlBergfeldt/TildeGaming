@@ -49,8 +49,16 @@ public class HorseRunnerGame : Game
     private GameState _state;
     private int _score;
     private float _gameTimer;
-    private const float LevelDuration = 45f; // each level is 45 seconds
-    private float _scrollSpeed = 250f;
+
+    // =======================================================================
+    // GAMEPLAY TUNING: World Speed & Timing
+    // - LevelDuration: seconds per level. Longer = more time to clear
+    //   obstacles. Try 30-60. Each level has its own timer.
+    // - _scrollSpeed: pixels/sec the world scrolls. Lower = slower pace,
+    //   more reaction time. Try 150 (easy) to 350 (hard).
+    // =======================================================================
+    private const float LevelDuration = 45f;
+    private float _scrollSpeed = 220f;
     private float _scrollOffset;
     private bool _appleCollected;
     private int _currentLevel; // 0 = forest, 1 = arena
