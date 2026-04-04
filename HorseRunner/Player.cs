@@ -13,9 +13,9 @@ public class Player
     public Vector2 Position;
     public Vector2 Velocity;
 
-    // Animation
-    private int _frameWidth = 128;
-    private int _frameHeight = 96;
+    // Animation - new bigger sprite size
+    private int _frameWidth = 192;
+    private int _frameHeight = 140;
     private int _currentFrame;
     private int _totalRunFrames;
     private float _frameTimer;
@@ -23,8 +23,8 @@ public class Player
 
     // Physics
     private float _groundY;
-    private const float Gravity = 1200f;
-    private const float JumpForce = -600f;
+    private const float Gravity = 1800f;
+    private const float JumpForce = -800f;
     public bool IsJumping { get; private set; }
     private bool _jumpKeyReleased = true;
 
@@ -37,7 +37,7 @@ public class Player
     public bool IsInvincible => _invincibleTimer > 0;
 
     // Lives
-    public int Lives { get; private set; } = 3;
+    public int Lives { get; set; } = 3;
     public bool IsDead => Lives <= 0;
 
     // Size for collision
@@ -56,6 +56,18 @@ public class Player
         _groundY = startPos.Y - _frameHeight;
         Position = new Vector2(startPos.X, _groundY);
         Velocity = Vector2.Zero;
+    }
+
+    public void ResetForLevel(float groundY)
+    {
+        _groundY = groundY - _frameHeight;
+        Position.Y = _groundY;
+        Velocity = Vector2.Zero;
+        IsJumping = false;
+        IsFalling = false;
+        _invincibleTimer = 0;
+        _fallTimer = 0;
+        _currentFrame = 0;
     }
 
     public void Jump()
@@ -82,7 +94,6 @@ public class Player
 
     public void Update(float dt)
     {
-        // Handle fall-off state
         if (IsFalling)
         {
             _fallTimer -= dt;
@@ -94,11 +105,9 @@ public class Player
             return;
         }
 
-        // Handle invincibility timer
         if (_invincibleTimer > 0)
             _invincibleTimer -= dt;
 
-        // Gravity
         if (IsJumping)
         {
             Velocity.Y += Gravity * dt;
@@ -112,7 +121,6 @@ public class Player
             }
         }
 
-        // Track key release for single-press jumping
         var keyState = Microsoft.Xna.Framework.Input.Keyboard.GetState();
         if (!keyState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Space) &&
             !keyState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Up))
@@ -120,7 +128,6 @@ public class Player
             _jumpKeyReleased = true;
         }
 
-        // Animate run cycle
         if (!IsJumping)
         {
             _frameTimer += dt;
@@ -134,12 +141,13 @@ public class Player
 
     public Rectangle GetBounds()
     {
-        int margin = 14;
+        int marginX = 30;
+        int marginY = 16;
         return new Rectangle(
-            (int)Position.X + margin,
-            (int)Position.Y + margin,
-            _frameWidth - margin * 2,
-            _frameHeight - margin * 2);
+            (int)Position.X + marginX,
+            (int)Position.Y + marginY,
+            _frameWidth - marginX * 2,
+            _frameHeight - marginY * 2);
     }
 
     public void Draw(SpriteBatch spriteBatch)
@@ -169,7 +177,6 @@ public class Player
                 _frameWidth, _frameHeight);
         }
 
-        // Blink when invincible
         Color tint = Color.White;
         if (IsInvincible && !IsFalling)
         {
