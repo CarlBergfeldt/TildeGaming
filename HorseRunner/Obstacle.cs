@@ -60,7 +60,10 @@ public class Obstacle
             case ObstacleType.Apple:
                 Width = 48;
                 Height = 48;
-                Position = new Vector2(startX, groundY - 140 - Height);
+                // Place apple so it overlaps with the player's hitbox at ground level.
+                // Player hitbox top is at (groundY - 140 + 20), so place apple
+                // just above ground, overlapping with the running player.
+                Position = new Vector2(startX, groundY - Height - 20);
                 IsActive = false;
                 break;
             case ObstacleType.Troll:

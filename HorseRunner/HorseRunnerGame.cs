@@ -355,8 +355,27 @@ public class HorseRunnerGame : Game
             }
         }
 
+        // Time's up - but if 75% cleared, count it as a level complete
         if (_gameTimer >= LevelDuration)
-            _state = GameState.GameOver;
+        {
+            GetObstacleCounts(out int endCleared, out int endTotal);
+            bool passed = endTotal > 0 && (float)endCleared / endTotal >= 0.75f;
+
+            if (passed && _currentLevel == 0)
+            {
+                _state = GameState.LevelComplete;
+                _levelTransitionTimer = 0f;
+            }
+            else if (passed && _currentLevel == 1)
+            {
+                _state = GameState.Won;
+                _appleRewardTimer = 0f;
+            }
+            else
+            {
+                _state = GameState.GameOver;
+            }
+        }
     }
 
     protected override void Draw(GameTime gameTime)
