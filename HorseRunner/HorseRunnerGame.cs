@@ -672,8 +672,6 @@ public class HorseRunnerGame : Game
 
         DrawCenteredText("Game Over", _titleFont, 100, Color.White);
 
-        // Red banner behind title
-        Vector2 titleSize = _titleFont.MeasureString("Game Over");
         _spriteBatch.Draw(_pixel,
             new Rectangle((int)(ScreenWidth - titleSize.X) / 2 - 20, 96,
                 (int)titleSize.X + 40, (int)titleSize.Y + 12), new Color(150, 20, 20, 200));
