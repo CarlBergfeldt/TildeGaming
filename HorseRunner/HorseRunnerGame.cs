@@ -254,6 +254,7 @@ public class HorseRunnerGame : Game
         if (!_player.IsFalling)
             _scrollOffset += _scrollSpeed * dt;
 
+        // Player input
         if (keyState.IsKeyDown(Keys.Space) || keyState.IsKeyDown(Keys.Up))
             _player.Jump();
 
@@ -276,6 +277,7 @@ public class HorseRunnerGame : Game
                 Rectangle playerBounds = _player.GetBounds();
                 Rectangle obstacleBounds = obstacle.GetBounds();
 
+                // Track if player is airborne while horizontally overlapping the obstacle
                 bool horizontalOverlap = playerBounds.Right > obstacleBounds.Left &&
                                          playerBounds.Left < obstacleBounds.Right;
                 if (horizontalOverlap && _player.IsJumping)
@@ -291,6 +293,7 @@ public class HorseRunnerGame : Game
                     }
                     else if (!_player.IsInvincible && !_player.IsFalling)
                     {
+                        // Physical collision - rider falls off!
                         _player.TriggerFall();
                         obstacle.IsPassed = true;
                     }
@@ -303,11 +306,14 @@ public class HorseRunnerGame : Game
             {
                 if (obstacle.PlayerWasAirborne)
                 {
+                    // Player jumped over it successfully!
                     obstacle.IsCleared = true;
                     _score += obstacle.IsTroll ? 20 : 10;
                 }
                 else
                 {
+                    // Obstacle passed without jumping over it (shouldn't normally
+                    // happen without collision, but just in case)
                     obstacle.IsPassed = true;
                 }
             }
@@ -457,6 +463,7 @@ public class HorseRunnerGame : Game
         {
             if (obs.IsApple) continue;
             Color dotColor = obs.IsCleared ? Color.Gold : (obs.IsPassed ? Color.DarkRed : Color.Gray);
+            // Troll dot is slightly bigger
             int dotSize = obs.IsTroll ? 14 : 10;
             int dotY = obs.IsTroll ? 12 : 14;
             _spriteBatch.Draw(_pixel, new Rectangle(dotX, dotY, dotSize, dotSize), dotColor);
@@ -485,6 +492,7 @@ public class HorseRunnerGame : Game
         string title = "Horse Runner";
         Vector2 titleSize = _titleFont.MeasureString(title);
         float titleX = (ScreenWidth - titleSize.X) / 2;
+
         _spriteBatch.Draw(_pixel,
             new Rectangle((int)titleX - 24, 60, (int)titleSize.X + 48, (int)titleSize.Y + 24),
             new Color(80, 50, 20));
@@ -501,6 +509,7 @@ public class HorseRunnerGame : Game
             new Rectangle(0, 0, 192, 140),
             Color.White);
 
+        // Instructions
         string[] instructions = {
             "Level 1: Ride through the forest - jump logs, rocks, and bushes!",
             "Level 2: Enter the arena - clear show jumping bar obstacles!",
@@ -632,6 +641,22 @@ public class HorseRunnerGame : Game
         DrawCenteredText($"Obstacles Cleared: {cleared}/{total}", _gameFont, 450, Color.Gold);
         DrawCenteredText($"Lives Remaining: {_player.Lives}/3", _gameFont, 480, Color.LightCoral);
 
+        string scoreText = $"Final Score: {_score}";
+        Vector2 scoreSize = _gameFont.MeasureString(scoreText);
+        _spriteBatch.DrawString(_gameFont, scoreText,
+            new Vector2((ScreenWidth - scoreSize.X) / 2, 270), Color.White);
+
+        string clearedText = $"Obstacles Cleared: {cleared}/{total}";
+        Vector2 clearedSize = _gameFont.MeasureString(clearedText);
+        _spriteBatch.DrawString(_gameFont, clearedText,
+            new Vector2((ScreenWidth - clearedSize.X) / 2, 300), Color.Gold);
+
+        string livesText = $"Lives Remaining: {_player.Lives}/3";
+        Vector2 livesSize = _gameFont.MeasureString(livesText);
+        _spriteBatch.DrawString(_gameFont, livesText,
+            new Vector2((ScreenWidth - livesSize.X) / 2, 330), Color.LightCoral);
+
+        // Restart prompt after animation
         if (_appleRewardTimer > AppleRewardDuration)
             DrawCenteredText("Press SPACE to play again!", _gameFont, 550, Color.LimeGreen);
     }
@@ -641,6 +666,9 @@ public class HorseRunnerGame : Game
         _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 180));
 
         string reason = _player.IsDead ? "No Lives Left!" : "Time's Up!";
+        string title = "Game Over";
+        Vector2 titleSize = _titleFont.MeasureString(title);
+        float titleX = (ScreenWidth - titleSize.X) / 2;
 
         DrawCenteredText("Game Over", _titleFont, 100, Color.White);
 
@@ -663,6 +691,17 @@ public class HorseRunnerGame : Game
         DrawCenteredText($"Final Score: {_score}", _gameFont, 380, Color.White);
         DrawCenteredText($"Obstacles Cleared: {cleared}/{total}", _gameFont, 410, Color.Gold);
 
+        string scoreText = $"Final Score: {_score}";
+        Vector2 scoreSize = _gameFont.MeasureString(scoreText);
+        _spriteBatch.DrawString(_gameFont, scoreText,
+            new Vector2((ScreenWidth - scoreSize.X) / 2, 300), Color.White);
+
+        string clearedText = $"Obstacles Cleared: {cleared}/{total}";
+        Vector2 clearedSize = _gameFont.MeasureString(clearedText);
+        _spriteBatch.DrawString(_gameFont, clearedText,
+            new Vector2((ScreenWidth - clearedSize.X) / 2, 330), Color.Gold);
+
+        // Show how close they were to 75%
         int needed = (int)Math.Ceiling(total * 0.75f);
         if (cleared < needed)
             DrawCenteredText($"Needed {needed} cleared for the apple!", _gameFont, 440, Color.Orange);

@@ -94,6 +94,7 @@ public class Player
 
     public void Update(float dt)
     {
+        // Handle fall-off state
         if (IsFalling)
         {
             _fallTimer -= dt;
@@ -105,9 +106,11 @@ public class Player
             return;
         }
 
+        // Handle invincibility timer
         if (_invincibleTimer > 0)
             _invincibleTimer -= dt;
 
+        // Gravity
         if (IsJumping)
         {
             Velocity.Y += Gravity * dt;
@@ -121,6 +124,7 @@ public class Player
             }
         }
 
+        // Track key release for single-press jumping
         var keyState = Microsoft.Xna.Framework.Input.Keyboard.GetState();
         if (!keyState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Space) &&
             !keyState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Up))
@@ -128,6 +132,7 @@ public class Player
             _jumpKeyReleased = true;
         }
 
+        // Animate run cycle
         if (!IsJumping)
         {
             _frameTimer += dt;
@@ -177,6 +182,7 @@ public class Player
                 _frameWidth, _frameHeight);
         }
 
+        // Blink when invincible
         Color tint = Color.White;
         if (IsInvincible && !IsFalling)
         {

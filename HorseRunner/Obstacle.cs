@@ -30,7 +30,7 @@ public class Obstacle
     private int _trollFrame;
     private float _trollFrameTimer;
     private int _trollTotalFrames = 4;
-    private float _trollMoveSpeed = 60f;
+    private float _trollMoveSpeed = 30f;
 
     public Obstacle(Texture2D texture, float startX, float groundY, ObstacleType type)
     {
@@ -71,12 +71,15 @@ public class Obstacle
 
     public void Update(float scrollSpeed, float dt)
     {
+        // Normal scroll
         Position.X -= scrollSpeed * dt;
 
+        // Troll walks toward the player (extra speed)
         if (IsTroll && IsActive && !IsCleared && !IsPassed)
         {
             Position.X -= _trollMoveSpeed * dt;
 
+            // Animate troll walk
             _trollFrameTimer += dt;
             if (_trollFrameTimer >= 0.15f)
             {
@@ -90,6 +93,7 @@ public class Obstacle
     {
         if (IsTroll)
         {
+            // Slightly smaller hitbox for fairness
             int margin = 8;
             return new Rectangle(
                 (int)Position.X + margin, (int)Position.Y + margin,
@@ -117,6 +121,7 @@ public class Obstacle
 
         if (IsTroll && !IsCleared)
         {
+            // Draw animated troll from sprite sheet
             Rectangle sourceRect = new Rectangle(
                 _trollFrame * _trollFrameWidth, 0,
                 _trollFrameWidth, _trollFrameHeight);
