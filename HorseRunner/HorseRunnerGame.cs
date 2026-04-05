@@ -119,7 +119,7 @@ public class HorseRunnerGame : Game
         _graphics.PreferredBackBufferHeight = ScreenHeight;
         _graphics.ApplyChanges();
 
-        Window.Title = "Horse Runner - Forest, Arena & Meadow";
+        Window.Title = "Horse Runner";
 
         base.Initialize();
     }
@@ -628,7 +628,7 @@ public class HorseRunnerGame : Game
             new Color(139, 90, 43));
         _spriteBatch.DrawString(_titleFont, title, new Vector2(titleX, 68), Color.Gold);
 
-        DrawCenteredText("Forest, Arena & Meadow Challenge", _gameFont, 120, new Color(200, 180, 140));
+        DrawCenteredText("by Tilde & Carl", _gameFont, 120, new Color(200, 180, 140));
 
         // Horse preview (bigger now)
         _spriteBatch.Draw(_horseRunTexture,
@@ -640,13 +640,10 @@ public class HorseRunnerGame : Game
         string[] instructions = {
             "Level 1: Ride through the forest - jump logs, rocks, and bushes!",
             "Level 2: Enter the arena - clear show jumping bar obstacles!",
-            "Level 3: Gallop across the meadow - with a surprise at the end!",
             "Clear 75% of obstacles to earn the apple!",
             "Watch out for the troll at the end of the forest!",
             "",
-            "SPACE or UP ARROW - Jump    |    You have 3 lives",
-            "",
-            "Press SPACE to start!"
+            "SPACE or UP ARROW - Jump    |    You have 3 lives"
         };
 
         float yPos = 320;
