@@ -7,7 +7,8 @@ namespace HorseRunner;
 public enum ObstacleType
 {
     Log, Rock, Bush, Troll, Apple,
-    BarSingle, BarOxer, BarTriple
+    BarSingle, BarOxer, BarTriple,
+    LogSmall, LogBirch, LogOak
 }
 
 public class Obstacle
@@ -78,6 +79,21 @@ public class Obstacle
                 Height = 70;  // slightly shorter than the sprite for easier clearance
                 Position = new Vector2(startX, groundY - Height);
                 break;
+            case ObstacleType.LogSmall:
+                Width = 70;
+                Height = 35;
+                Position = new Vector2(startX, groundY - Height);
+                break;
+            case ObstacleType.LogBirch:
+                Width = 90;
+                Height = 45;
+                Position = new Vector2(startX, groundY - Height);
+                break;
+            case ObstacleType.LogOak:
+                Width = 110;
+                Height = 55;
+                Position = new Vector2(startX, groundY - Height);
+                break;
             default: // Log, Rock, Bush
                 Width = texture.Width;
                 Height = texture.Height;
@@ -132,6 +148,14 @@ public class Obstacle
         if (Type == ObstacleType.BarSingle || Type == ObstacleType.BarOxer || Type == ObstacleType.BarTriple)
         {
             int margin = 10;
+            return new Rectangle(
+                (int)Position.X + margin, (int)Position.Y + margin,
+                Width - margin * 2, Height - margin * 2);
+        }
+        // Meadow logs
+        if (Type == ObstacleType.LogSmall || Type == ObstacleType.LogBirch || Type == ObstacleType.LogOak)
+        {
+            int margin = 4;
             return new Rectangle(
                 (int)Position.X + margin, (int)Position.Y + margin,
                 Width - margin * 2, Height - margin * 2);

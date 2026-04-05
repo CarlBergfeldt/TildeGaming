@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace HorseRunner;
 
-public enum LevelType { Forest, Arena }
+public enum LevelType { Forest, Arena, Meadow }
 
 public class GameLevel
 {
@@ -24,8 +24,10 @@ public class GameLevel
 
         if (levelType == LevelType.Forest)
             BuildForestLevel(textures, totalDistance, groundY);
-        else
+        else if (levelType == LevelType.Arena)
             BuildArenaLevel(textures, totalDistance, groundY);
+        else
+            BuildMeadowLevel(textures, totalDistance, groundY);
     }
 
     private void BuildForestLevel(Dictionary<string, Texture2D> textures, float totalDistance, float groundY)
@@ -86,6 +88,35 @@ public class GameLevel
         }
 
         // Apple at the end of arena level
+        float appleX = screenW + startOffset + obstacleCount * spacing + spacing * 0.5f;
+        var apple = new Obstacle(textures["apple"], appleX, groundY, ObstacleType.Apple);
+        Obstacles.Add(apple);
+    }
+
+    private void BuildMeadowLevel(Dictionary<string, Texture2D> textures, float totalDistance, float groundY)
+    {
+        int obstacleCount = 10;
+        float startOffset = 700f;
+        float spacing = (totalDistance - startOffset) / (obstacleCount + 2);
+
+        Texture2D[] logTextures = {
+            textures["log_small"], textures["log_birch"], textures["log_oak"]
+        };
+        ObstacleType[] logTypes = {
+            ObstacleType.LogSmall, ObstacleType.LogBirch, ObstacleType.LogOak
+        };
+
+        float screenW = HorseRunnerGame.ScreenWidth;
+
+        for (int i = 0; i < obstacleCount; i++)
+        {
+            float x = screenW + startOffset + i * spacing;
+            int idx = i % logTextures.Length;
+            var obstacle = new Obstacle(logTextures[idx], x, groundY, logTypes[idx]);
+            Obstacles.Add(obstacle);
+        }
+
+        // Apple at the end
         float appleX = screenW + startOffset + obstacleCount * spacing + spacing * 0.5f;
         var apple = new Obstacle(textures["apple"], appleX, groundY, ObstacleType.Apple);
         Obstacles.Add(apple);
