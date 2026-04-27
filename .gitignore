@@ -90,3 +90,11 @@ nunit-*.xml
 /.vs/TildeGaming/FileContentIndex/811fb4ec-f07e-432a-b735-c3ae5db3e4a9.vsidx
 /.vs/TildeGaming/FileContentIndex/b826a958-c3b2-4af5-a80a-b4a51272877e.vsidx
 /.vs/TildeGaming/FileContentIndex/cf6d9769-f2c8-49a9-9669-636b23a50a71.vsidx
+
+# Visual Studio workspace
+.vs/
+
+# Publish and packaging outputs
+publish/
+*.zip
+
