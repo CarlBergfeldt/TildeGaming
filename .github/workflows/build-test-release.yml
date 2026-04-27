@@ -68,7 +68,24 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Publish
-        run: dotnet publish HorseRunner/HorseRunner.csproj --configuration Release --output publish
+        run: dotnet publish HorseRunner/HorseRunner.csproj --configuration Release --runtime win-x64 --self-contained true --output publish
+
+      - name: Add prerequisites guide
+        shell: pwsh
+        run: |
+          @"
+          HorseRunner prerequisites (Windows x64)
+          =======================================
+
+          This release is self-contained and includes the .NET runtime.
+          In most cases, you can run the game directly after extracting the zip.
+
+          If the game does not start, install:
+          1. Microsoft Visual C++ Redistributable 2015-2022 (x64)
+             https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist
+          2. OpenAL (if audio initialization fails)
+             https://openal.org/downloads/
+          "@ | Set-Content -Path publish\PREREQUISITES.txt -Encoding UTF8
 
       - name: Package release artifact
         shell: pwsh
