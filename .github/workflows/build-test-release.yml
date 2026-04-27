@@ -87,6 +87,13 @@ jobs:
              https://openal.org/downloads/
           "@ | Set-Content -Path publish\PREREQUISITES.txt -Encoding UTF8
 
+          @"
+          Windows security notice
+          =======================
+
+          Users can still click More info -> Run anyway, but that is not true trust.
+          "@ | Set-Content -Path publish\README.txt -Encoding UTF8
+
       - name: Package release artifact
         shell: pwsh
         run: |
