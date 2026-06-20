@@ -6,9 +6,18 @@ namespace HorseRunner;
 
 public class Player
 {
+    // Horse coat layers (selected coat) ...
     private Texture2D _runTexture;
     private Texture2D _jumpTexture;
     private Texture2D _fallTexture;
+
+    // Rider jacket layers (greyscale, tinted with the chosen rider colour) ...
+    private Texture2D _jacketRunTexture;
+    private Texture2D _jacketJumpTexture;
+    private Texture2D _jacketFallTexture;
+
+    // The chosen rider jacket colour (Yellow / Blue / White / Black).
+    private Color _riderColor;
 
     public Vector2 Position;
     public Vector2 Velocity;
@@ -61,11 +70,20 @@ public class Player
     public int Width => _frameWidth;
     public int Height => _frameHeight;
 
-    public Player(Texture2D runTexture, Texture2D jumpTexture, Texture2D fallTexture, Vector2 startPos)
+    public Player(
+        Texture2D runTexture, Texture2D jumpTexture, Texture2D fallTexture,
+        Texture2D jacketRunTexture, Texture2D jacketJumpTexture, Texture2D jacketFallTexture,
+        Color riderColor,
+        Vector2 startPos)
     {
         _runTexture = runTexture;
         _jumpTexture = jumpTexture;
         _fallTexture = fallTexture;
+
+        _jacketRunTexture = jacketRunTexture;
+        _jacketJumpTexture = jacketJumpTexture;
+        _jacketFallTexture = jacketFallTexture;
+        _riderColor = riderColor;
 
         _totalRunFrames = _runTexture.Width / _frameWidth;
         if (_totalRunFrames < 1) _totalRunFrames = 1;
@@ -181,26 +199,30 @@ public class Player
 
     public void Draw(SpriteBatch spriteBatch)
     {
-        Texture2D texture;
+        Texture2D coat;
+        Texture2D jacket;
         Rectangle sourceRect;
 
         if (IsFalling)
         {
-            texture = _fallTexture;
+            coat = _fallTexture;
+            jacket = _jacketFallTexture;
             sourceRect = new Rectangle(0, 0,
                 Math.Min(_frameWidth, _fallTexture.Width),
                 Math.Min(_frameHeight, _fallTexture.Height));
         }
         else if (IsJumping)
         {
-            texture = _jumpTexture;
+            coat = _jumpTexture;
+            jacket = _jacketJumpTexture;
             sourceRect = new Rectangle(0, 0,
                 Math.Min(_frameWidth, _jumpTexture.Width),
                 Math.Min(_frameHeight, _jumpTexture.Height));
         }
         else
         {
-            texture = _runTexture;
+            coat = _runTexture;
+            jacket = _jacketRunTexture;
             sourceRect = new Rectangle(
                 _currentFrame * _frameWidth, 0,
                 _frameWidth, _frameHeight);
@@ -214,9 +236,22 @@ public class Player
             tint = blink > 0 ? Color.White : Color.White * 0.3f;
         }
 
-        spriteBatch.Draw(texture,
-            new Rectangle((int)Position.X, (int)Position.Y, _frameWidth, _frameHeight),
-            sourceRect,
-            tint);
+        var dest = new Rectangle((int)Position.X, (int)Position.Y, _frameWidth, _frameHeight);
+
+        // Layer 1: the horse coat (+ rider body) ...
+        spriteBatch.Draw(coat, dest, sourceRect, tint);
+        // Layer 2: the rider's jacket, tinted with the chosen rider colour ...
+        spriteBatch.Draw(jacket, dest, sourceRect, MultiplyColor(_riderColor, tint));
+    }
+
+    // Multiply two colours channel-by-channel (so the blink fade also applies
+    // to the tinted jacket).
+    public static Color MultiplyColor(Color a, Color b)
+    {
+        return new Color(
+            a.R * b.R / 255,
+            a.G * b.G / 255,
+            a.B * b.B / 255,
+            a.A * b.A / 255);
     }
 }

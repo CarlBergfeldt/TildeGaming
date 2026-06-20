@@ -16,10 +16,17 @@ public class HorseRunnerGame : Game
     private List<Obstacle> _obstacles;
     private GameLevel _level;
 
+    // Horse coat layers (one set per selectable coat) + tintable rider jacket
+    private Texture2D[] _coatRun = new Texture2D[3];
+    private Texture2D[] _coatJump = new Texture2D[3];
+    private Texture2D[] _coatFall = new Texture2D[3];
+    private Texture2D _jacketRunTexture;
+    private Texture2D _jacketJumpTexture;
+    private Texture2D _jacketFallTexture;
+    private Texture2D _riderStandTexture;
+    private Texture2D _riderStandJacketTexture;
+
     // Textures - Forest
-    private Texture2D _horseRunTexture;
-    private Texture2D _horseJumpTexture;
-    private Texture2D _horseFallTexture;
     private Texture2D _obstacleLogTexture;
     private Texture2D _obstacleRockTexture;
     private Texture2D _obstacleBushTexture;
@@ -61,10 +68,31 @@ public class HorseRunnerGame : Game
     private SpriteFont _titleFont;
 
     // Game state
-    private enum GameState { Title, Playing, LevelComplete, Won, GameOver }
+    private enum GameState { Title, HorseSelect, Playing, LevelComplete, Won, GameOver }
     private GameState _state;
     private int _score;
     private float _gameTimer;
+
+    // =======================================================================
+    // Horse & rider selection
+    // - 3 horse coats to pick from, and 4 rider jacket colours.
+    // =======================================================================
+    private static readonly string[] CoatKeys = { "chestnut", "black", "snow" };
+    private static readonly string[] CoatNames = { "Bramble", "Shadow", "Snowflake" };
+    private static readonly string[] CoatDescriptions =
+        { "Chestnut", "Black", "White" };
+    private static readonly Color[] RiderColors =
+    {
+        new Color(240, 210, 40),   // Yellow
+        new Color(55, 90, 200),    // Blue
+        new Color(244, 244, 248),  // White
+        new Color(50, 50, 62),     // Black
+    };
+    private static readonly string[] RiderColorNames =
+        { "Yellow", "Blue", "White", "Black" };
+    private int _selectedHorse;
+    private int _selectedRider = 1; // default Blue (matches the classic rider)
+    private float _menuTimer; // drives the running-horse preview animation
 
     // =======================================================================
     // GAMEPLAY TUNING: World Speed & Timing
@@ -128,10 +156,20 @@ public class HorseRunnerGame : Game
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-        // Horse textures
-        _horseRunTexture = Content.Load<Texture2D>("Sprites/horse_rider_run");
-        _horseJumpTexture = Content.Load<Texture2D>("Sprites/horse_rider_jump");
-        _horseFallTexture = Content.Load<Texture2D>("Sprites/horse_rider_fall");
+        // Horse coat layers (one per selectable coat) ...
+        for (int i = 0; i < CoatKeys.Length; i++)
+        {
+            _coatRun[i] = Content.Load<Texture2D>($"Sprites/horse_{CoatKeys[i]}_run");
+            _coatJump[i] = Content.Load<Texture2D>($"Sprites/horse_{CoatKeys[i]}_jump");
+            _coatFall[i] = Content.Load<Texture2D>($"Sprites/horse_{CoatKeys[i]}_fall");
+        }
+        // Tintable rider jacket layers (shared across coats) ...
+        _jacketRunTexture = Content.Load<Texture2D>("Sprites/rider_jacket_run");
+        _jacketJumpTexture = Content.Load<Texture2D>("Sprites/rider_jacket_jump");
+        _jacketFallTexture = Content.Load<Texture2D>("Sprites/rider_jacket_fall");
+        // Standing rider for the podium finish ...
+        _riderStandTexture = Content.Load<Texture2D>("Sprites/rider_stand");
+        _riderStandJacketTexture = Content.Load<Texture2D>("Sprites/rider_stand_jacket");
 
         // Forest obstacles
         _obstacleLogTexture = Content.Load<Texture2D>("Sprites/obstacle_log");
@@ -207,14 +245,22 @@ public class HorseRunnerGame : Game
         _appleCollected = false;
         _appleRewardTimer = 0f;
         _currentLevel = 0;
+        // The player is built once the horse & rider have been chosen (StartRun).
+        _player = null;
+    }
 
+    // Build the player from the currently-selected horse coat and rider colour,
+    // then start level 1.
+    private void StartRun()
+    {
         _player = new Player(
-            _horseRunTexture,
-            _horseJumpTexture,
-            _horseFallTexture,
+            _coatRun[_selectedHorse], _coatJump[_selectedHorse], _coatFall[_selectedHorse],
+            _jacketRunTexture, _jacketJumpTexture, _jacketFallTexture,
+            RiderColors[_selectedRider],
             new Vector2(120, GroundY));
 
         LoadLevel(0);
+        _state = GameState.Playing;
     }
 
     private void LoadLevel(int levelIndex)
@@ -252,7 +298,11 @@ public class HorseRunnerGame : Game
         {
             case GameState.Title:
                 if (IsKeyPressed(keyState, Keys.Space) || IsKeyPressed(keyState, Keys.Enter))
-                    _state = GameState.Playing;
+                    _state = GameState.HorseSelect;
+                break;
+
+            case GameState.HorseSelect:
+                UpdateHorseSelect(keyState, dt);
                 break;
 
             case GameState.Playing:
@@ -274,16 +324,14 @@ public class HorseRunnerGame : Game
                 if (_appleRewardTimer > AppleRewardDuration &&
                     (IsKeyPressed(keyState, Keys.R) || IsKeyPressed(keyState, Keys.Space) || IsKeyPressed(keyState, Keys.Enter)))
                 {
-                    StartNewGame();
-                    _state = GameState.Playing;
+                    StartNewGame(); // back to the title; keeps the chosen horse/rider
                 }
                 break;
 
             case GameState.GameOver:
                 if (IsKeyPressed(keyState, Keys.R) || IsKeyPressed(keyState, Keys.Space) || IsKeyPressed(keyState, Keys.Enter))
                 {
-                    StartNewGame();
-                    _state = GameState.Playing;
+                    StartNewGame(); // back to the title; keeps the chosen horse/rider
                 }
                 break;
         }
@@ -295,6 +343,62 @@ public class HorseRunnerGame : Game
     private bool IsKeyPressed(KeyboardState current, Keys key)
     {
         return current.IsKeyDown(key) && _prevKeyState.IsKeyUp(key);
+    }
+
+    private void UpdateHorseSelect(KeyboardState keyState, float dt)
+    {
+        _menuTimer += dt;
+
+        // LEFT / RIGHT cycles the horse coat.
+        if (IsKeyPressed(keyState, Keys.Right) || IsKeyPressed(keyState, Keys.D))
+            _selectedHorse = (_selectedHorse + 1) % CoatKeys.Length;
+        if (IsKeyPressed(keyState, Keys.Left) || IsKeyPressed(keyState, Keys.A))
+            _selectedHorse = (_selectedHorse + CoatKeys.Length - 1) % CoatKeys.Length;
+
+        // UP / DOWN cycles the rider jacket colour.
+        if (IsKeyPressed(keyState, Keys.Down) || IsKeyPressed(keyState, Keys.S))
+            _selectedRider = (_selectedRider + 1) % RiderColors.Length;
+        if (IsKeyPressed(keyState, Keys.Up) || IsKeyPressed(keyState, Keys.W))
+            _selectedRider = (_selectedRider + RiderColors.Length - 1) % RiderColors.Length;
+
+        // Number keys 1-4 pick a rider colour directly.
+        if (IsKeyPressed(keyState, Keys.D1)) _selectedRider = 0;
+        if (IsKeyPressed(keyState, Keys.D2)) _selectedRider = 1;
+        if (IsKeyPressed(keyState, Keys.D3)) _selectedRider = 2;
+        if (IsKeyPressed(keyState, Keys.D4)) _selectedRider = 3;
+
+        if (IsKeyPressed(keyState, Keys.Space) || IsKeyPressed(keyState, Keys.Enter))
+            StartRun();
+    }
+
+    // Draw a still horse+rider (coat layer + tinted jacket) at the given
+    // destination, using the standing/jump pose. Used by menus & finish screens.
+    private void DrawHorseRiderStill(int coatIndex, int riderIndex, Rectangle dest, Color baseTint)
+    {
+        var src = new Rectangle(0, 0, 192, 140);
+        _spriteBatch.Draw(_coatJump[coatIndex], dest, src, baseTint);
+        _spriteBatch.Draw(_jacketJumpTexture, dest, src,
+            Player.MultiplyColor(RiderColors[riderIndex], baseTint));
+    }
+
+    // Draw an animated running horse+rider at the given destination.
+    private void DrawHorseRiderRunning(int coatIndex, int riderIndex, Rectangle dest, float animTime, Color baseTint)
+    {
+        int frames = _coatRun[coatIndex].Width / 192;
+        if (frames < 1) frames = 1;
+        int frame = ((int)(animTime / 0.1f)) % frames;
+        var src = new Rectangle(frame * 192, 0, 192, 140);
+        _spriteBatch.Draw(_coatRun[coatIndex], dest, src, baseTint);
+        _spriteBatch.Draw(_jacketRunTexture, dest, src,
+            Player.MultiplyColor(RiderColors[riderIndex], baseTint));
+    }
+
+    // Draw the standing (arms-up) rider at the given destination, jacket tinted.
+    private void DrawStandingRider(int riderIndex, Rectangle dest, Color baseTint)
+    {
+        _spriteBatch.Draw(_riderStandTexture, dest, baseTint);
+        _spriteBatch.Draw(_riderStandJacketTexture, dest,
+            Player.MultiplyColor(RiderColors[riderIndex], baseTint));
     }
 
     private void GetObstacleCounts(out int cleared, out int total)
@@ -469,6 +573,9 @@ public class HorseRunnerGame : Game
             case GameState.Title:
                 DrawTitle();
                 break;
+            case GameState.HorseSelect:
+                DrawHorseSelect();
+                break;
             case GameState.Playing:
                 DrawGameplay(_currentLevel);
                 // Night overlay on top of gameplay
@@ -630,11 +737,9 @@ public class HorseRunnerGame : Game
 
         DrawCenteredText("by Tilde & Carl", _gameFont, 120, new Color(200, 180, 140));
 
-        // Horse preview (bigger now)
-        _spriteBatch.Draw(_horseRunTexture,
-            new Rectangle(ScreenWidth / 2 - 96, 160, 192, 140),
-            new Rectangle(0, 0, 192, 140),
-            Color.White);
+        // Horse preview (shows the currently-selected horse & rider) ...
+        DrawHorseRiderStill(_selectedHorse, _selectedRider,
+            new Rectangle(ScreenWidth / 2 - 96, 160, 192, 140), Color.White);
 
         // Instructions
         string[] instructions = {
@@ -643,7 +748,7 @@ public class HorseRunnerGame : Game
             "Clear 75% of obstacles to earn the apple!",
             "Watch out for the troll at the end of the forest!",
             "",
-            "SPACE or UP ARROW - Jump    |    You have 3 lives"
+            "SPACE or ENTER - Choose your horse & rider, then ride!"
         };
 
         float yPos = 320;
@@ -661,6 +766,74 @@ public class HorseRunnerGame : Game
         }
     }
 
+    private void DrawHorseSelect()
+    {
+        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 190));
+
+        DrawCenteredText("Choose Your Horse & Rider", _titleFont, 36, Color.Gold);
+
+        // Big animated preview of the chosen combination.
+        DrawHorseRiderRunning(_selectedHorse, _selectedRider,
+            new Rectangle(ScreenWidth / 2 - 150, 120, 300, 218), _menuTimer, Color.White);
+
+        // ---- Horse row ----
+        DrawCenteredText("Horse  (< LEFT / RIGHT >)", _gameFont, 348, new Color(200, 220, 255));
+        int n = CoatKeys.Length;
+        int cellW = 150, cellH = 90, gap = 24;
+        int rowW = n * cellW + (n - 1) * gap;
+        int startX = (ScreenWidth - rowW) / 2;
+        int rowY = 372;
+        for (int i = 0; i < n; i++)
+        {
+            int cx = startX + i * (cellW + gap);
+            bool sel = i == _selectedHorse;
+            DrawSelectionBox(new Rectangle(cx, rowY, cellW, cellH), sel);
+            DrawHorseRiderStill(i, _selectedRider,
+                new Rectangle(cx + cellW / 2 - 64, rowY - 6, 128, 93), Color.White);
+            DrawCenteredTextIn(CoatNames[i], _gameFont, cx, cellW, rowY + cellH - 26,
+                sel ? Color.Gold : Color.White);
+            DrawCenteredTextIn(CoatDescriptions[i], _gameFont, cx, cellW, rowY + cellH - 4,
+                sel ? new Color(255, 230, 150) : Color.Gray);
+        }
+
+        // ---- Rider colour row ----
+        DrawCenteredText("Rider Colour  (^ UP / DOWN v  or  1-4)", _gameFont, 498, new Color(200, 220, 255));
+        int m = RiderColors.Length;
+        int sw = 110, sgap = 18, sh = 64;
+        int srowW = m * sw + (m - 1) * sgap;
+        int sStartX = (ScreenWidth - srowW) / 2;
+        int sRowY = 522;
+        for (int i = 0; i < m; i++)
+        {
+            int cx = sStartX + i * (sw + sgap);
+            bool sel = i == _selectedRider;
+            DrawSelectionBox(new Rectangle(cx, sRowY, sw, sh), sel);
+            _spriteBatch.Draw(_pixel, new Rectangle(cx + 12, sRowY + 10, sw - 24, 26), RiderColors[i]);
+            DrawCenteredTextIn(RiderColorNames[i], _gameFont, cx, sw, sRowY + sh - 22,
+                sel ? Color.Gold : Color.White);
+        }
+
+        DrawCenteredText("Press SPACE or ENTER to ride!", _gameFont, 626, Color.LimeGreen);
+    }
+
+    private void DrawSelectionBox(Rectangle r, bool selected)
+    {
+        Color fill = selected ? new Color(60, 50, 20, 220) : new Color(30, 30, 40, 180);
+        _spriteBatch.Draw(_pixel, r, fill);
+        Color border = selected ? Color.Gold : new Color(90, 90, 110);
+        int t = selected ? 3 : 1;
+        _spriteBatch.Draw(_pixel, new Rectangle(r.X, r.Y, r.Width, t), border);
+        _spriteBatch.Draw(_pixel, new Rectangle(r.X, r.Bottom - t, r.Width, t), border);
+        _spriteBatch.Draw(_pixel, new Rectangle(r.X, r.Y, t, r.Height), border);
+        _spriteBatch.Draw(_pixel, new Rectangle(r.Right - t, r.Y, t, r.Height), border);
+    }
+
+    private void DrawCenteredTextIn(string text, SpriteFont font, int x, int width, float y, Color color)
+    {
+        Vector2 size = font.MeasureString(text);
+        _spriteBatch.DrawString(font, text, new Vector2(x + (width - size.X) / 2, y), color);
+    }
+
     private void DrawLevelCompleteScreen()
     {
         _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 180));
@@ -671,9 +844,8 @@ public class HorseRunnerGame : Game
         GetObstacleCounts(out int cleared, out int total);
 
         // Horse with apple
-        _spriteBatch.Draw(_horseRunTexture,
-            new Rectangle(ScreenWidth / 2 - 96, 190, 192, 140),
-            new Rectangle(0, 0, 192, 140), Color.White);
+        DrawHorseRiderStill(_selectedHorse, _selectedRider,
+            new Rectangle(ScreenWidth / 2 - 96, 190, 192, 140), Color.White);
 
         float anim = Math.Min(_levelTransitionTimer / 2f, 1f);
         if (anim < 1f)
@@ -752,164 +924,165 @@ public class HorseRunnerGame : Game
             Color.White * (_nightAlpha * 0.5f));
     }
 
+    // =======================================================================
+    // VICTORY: the rider gallops in, leaps off the horse and lands on top of
+    // the #1 spot of the 1-2-3 prize podium.
+    // =======================================================================
     private void DrawWinScreen()
     {
-        // Dark night sky background for the unicorn surprise
-        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(10, 8, 30, 230));
-
-        // Stars in background
-        _spriteBatch.Draw(_starsTexture,
-            new Rectangle(0, 0, ScreenWidth, 400), Color.White);
-
-        // Moon
-        float moonBob = (float)Math.Sin(_appleRewardTimer * 0.8f) * 3;
-        _spriteBatch.Draw(_moonTexture,
-            new Rectangle(ScreenWidth - 140, 30 + (int)moonBob, 80, 80), Color.White);
+        // --- Festive ceremony backdrop (bright sky + arena floor) ---
+        for (int y = 0; y < ScreenHeight; y++)
+        {
+            float t = y / (float)ScreenHeight;
+            Color sky = Color.Lerp(new Color(120, 180, 235), new Color(225, 238, 245), t);
+            _spriteBatch.Draw(_pixel, new Rectangle(0, y, ScreenWidth, 1), sky);
+        }
+        int groundLineY = 600;
+        _spriteBatch.Draw(_pixel, new Rectangle(0, groundLineY, ScreenWidth, ScreenHeight - groundLineY),
+            new Color(196, 170, 120));
 
         float animProgress = Math.Min(_appleRewardTimer / AppleRewardDuration, 1f);
 
-        int horseX = ScreenWidth / 2 - 96;
-        int horseY = 180;
+        // --- Podium geometry (1st in the middle & tallest) ---
+        int cx = ScreenWidth / 2;
+        int blockW = 150;
+        int podBottom = 660;
+        var first = new Rectangle(cx - blockW / 2, 460, blockW, podBottom - 460);
+        var second = new Rectangle(cx - blockW / 2 - blockW, 510, blockW, podBottom - 510);
+        var third = new Rectangle(cx + blockW / 2, 535, blockW, podBottom - 535);
+        DrawPodiumBlock(second, new Color(205, 207, 214), new Color(150, 152, 160), "2");
+        DrawPodiumBlock(third, new Color(208, 150, 92), new Color(150, 104, 60), "3");
+        DrawPodiumBlock(first, new Color(235, 205, 95), new Color(176, 142, 50), "1");
 
-        // Horse standing
-        _spriteBatch.Draw(_horseRunTexture,
-            new Rectangle(horseX, horseY, 192, 140),
-            new Rectangle(0, 0, 192, 140), Color.White);
+        // Where the champion rider comes to rest on top of block #1.
+        int riderW = 86, riderH = 140;
+        int riderRestX = cx - riderW / 2;
+        int riderRestY = first.Y - riderH + 6;
 
-        // Phase 1 (0-30%): Apple floats toward horse
-        if (animProgress < 0.3f)
+        // Where the horse gallops in to (just left of the podium).
+        int horseStandX = cx - 360;
+        int horseY = 466;
+
+        const float pA = 0.34f;   // gallop in
+        const float pB = 0.55f;   // leap off onto the podium
+
+        if (animProgress < pA)
         {
-            DrawCenteredText("All Levels Complete!", _titleFont, 30, Color.Gold);
-
-            float phase = animProgress / 0.3f;
-            float appleX = MathHelper.Lerp(horseX + 250, horseX + 150, phase);
-            float appleY = MathHelper.Lerp(140, horseY + 10, phase);
-            float bob = (float)Math.Sin(_appleRewardTimer * 5) * 4;
-            _spriteBatch.Draw(_appleTexture,
-                new Rectangle((int)appleX, (int)(appleY + bob), 48, 48), Color.White);
+            // Phase A: horse + rider gallop in from the left.
+            DrawCenteredText("Champion's Lap!", _titleFont, 40, Color.Gold);
+            float t = animProgress / pA;
+            float ease = 1f - (1f - t) * (1f - t);
+            int hx = (int)MathHelper.Lerp(-220, horseStandX, ease);
+            DrawHorseRiderRunning(_selectedHorse, _selectedRider,
+                new Rectangle(hx, horseY, 192, 140), _appleRewardTimer, Color.White);
         }
-        // Phase 2 (30-45%): Yum! text
-        else if (animProgress < 0.45f)
+        else if (animProgress < pB)
         {
-            DrawCenteredText("All Levels Complete!", _titleFont, 30, Color.Gold);
-            float yumAlpha = Math.Min(1f, (animProgress - 0.3f) / 0.08f);
-            _spriteBatch.DrawString(_titleFont, "Yum!",
-                new Vector2(horseX + 170, horseY + 10), Color.LimeGreen * yumAlpha);
+            // Phase B: rider leaps off; horse trots back off to the left.
+            DrawCenteredText("And the leap onto the podium!", _titleFont, 40, Color.Gold);
+            float t = (animProgress - pA) / (pB - pA);
+
+            int hx = (int)MathHelper.Lerp(horseStandX, -260, t);
+            DrawHorseRiderRunning(_selectedHorse, _selectedRider,
+                new Rectangle(hx, horseY, 192, 140), _appleRewardTimer, Color.White);
+
+            // Rider arcs from the saddle up onto block #1.
+            float startX = horseStandX + 78;
+            float startY = horseY + 8;
+            float x = MathHelper.Lerp(startX, riderRestX, t);
+            float y = MathHelper.Lerp(startY, riderRestY, t)
+                      - 150f * (float)Math.Sin(Math.PI * t);
+            DrawStandingRider(_selectedRider, new Rectangle((int)x, (int)y, riderW, riderH), Color.White);
         }
-        // Phase 3 (45-100%): UNICORN SURPRISE!
         else
         {
-            float unicornPhase = (animProgress - 0.45f) / 0.55f;
+            // Phase C: champion stands on top, medal & confetti.
+            float t = (animProgress - pB) / (1f - pB);
+            float pulse = (float)(Math.Sin(_appleRewardTimer * 4) * 0.12 + 0.88);
+            DrawCenteredText("CHAMPION!", _titleFont, 40,
+                Color.Lerp(Color.Gold, new Color(255, 240, 160), pulse));
 
-            // Title changes
-            if (unicornPhase < 0.3f)
-            {
-                float fadeIn = unicornPhase / 0.3f;
-                DrawCenteredText("Something magical is happening...", _titleFont, 30,
-                    new Color(180, 140, 255) * fadeIn);
-            }
-            else
-            {
-                float pulse = (float)(Math.Sin(_appleRewardTimer * 4) * 0.15 + 0.85);
-                DrawCenteredText("UNICORN!", _titleFont, 30,
-                    Color.Lerp(Color.Gold, new Color(255, 180, 255), pulse));
-            }
+            int bob = (int)(Math.Sin(_appleRewardTimer * 3) * 3);
+            DrawStandingRider(_selectedRider,
+                new Rectangle(riderRestX, riderRestY + bob, riderW, riderH), Color.White);
 
-            // Golden horn grows on horse's head
-            float hornGrow = Math.Min(1f, unicornPhase * 2.5f);
-            int hornX = horseX + 155;
-            int hornY = horseY - (int)(40 * hornGrow) + 20;
-            int hornW = (int)(24 * hornGrow);
-            int hornH = (int)(40 * hornGrow);
-            if (hornW > 0 && hornH > 0)
+            // Gold medal descends onto the champion.
+            if (t > 0.15f)
             {
-                _spriteBatch.Draw(_unicornHornTexture,
-                    new Rectangle(hornX, hornY, hornW, hornH), Color.White);
-            }
-
-            // Magic sparkles around the horse
-            if (unicornPhase > 0.2f)
-            {
-                float sparkleAlpha = Math.Min(1f, (unicornPhase - 0.2f) * 2f);
-                for (int i = 0; i < 6; i++)
+                float mt = Math.Min(1f, (t - 0.15f) * 2.2f);
+                int medalW = 32, medalH = 38;
+                int medalX = cx - medalW / 2;
+                int medalY = (int)MathHelper.Lerp(riderRestY - 120, riderRestY + 60, mt);
+                if (mt > 0.4f)
                 {
-                    float angle = _appleRewardTimer * 2f + i * (MathHelper.TwoPi / 6);
-                    float radius = 80 + (float)Math.Sin(_appleRewardTimer * 3 + i) * 20;
-                    float sx = horseX + 96 + (float)Math.Cos(angle) * radius;
-                    float sy = horseY + 70 + (float)Math.Sin(angle) * radius * 0.6f;
-                    float sparkleSize = 24 + (float)Math.Sin(_appleRewardTimer * 5 + i * 2) * 8;
-                    _spriteBatch.Draw(_sparklesTexture,
-                        new Rectangle((int)sx, (int)sy, (int)sparkleSize, (int)sparkleSize),
-                        Color.White * sparkleAlpha);
+                    float g = (float)Math.Sin(_appleRewardTimer * 8);
+                    _spriteBatch.Draw(_pixel, new Rectangle(medalX - 8, medalY - 8, medalW + 16, medalH + 16),
+                        Color.Gold * (0.18f + g * 0.12f));
                 }
+                _spriteBatch.Draw(_goldMedalTexture, new Rectangle(medalX, medalY, medalW, medalH), Color.White);
             }
 
-            // Fireflies
-            if (unicornPhase > 0.3f)
+            // Sparkles around the champion.
+            float sa = Math.Min(1f, t * 2f);
+            for (int i = 0; i < 6; i++)
             {
-                float ffAlpha = Math.Min(1f, (unicornPhase - 0.3f) * 2f);
-                for (int i = 0; i < 10; i++)
-                {
-                    float fx = (float)(Math.Sin(_appleRewardTimer * (0.6 + i * 0.25) + i * 1.8) * 300 + ScreenWidth / 2);
-                    float fy = (float)(Math.Sin(_appleRewardTimer * (0.4 + i * 0.15) + i * 2.5) * 120 + 300);
-                    float flicker = (float)(Math.Sin(_appleRewardTimer * 7 + i * 3.5) * 0.3 + 0.7);
-                    _spriteBatch.Draw(_fireflyTexture,
-                        new Rectangle((int)fx, (int)fy, 14, 14),
-                        Color.White * (ffAlpha * flicker));
-                }
-            }
-
-            // Gold medal descends
-            if (unicornPhase > 0.5f)
-            {
-                float medalPhase = (unicornPhase - 0.5f) / 0.5f;
-                float medalX = horseX + 60;
-                float medalStartY = horseY - 120;
-                float medalEndY = horseY + 10;
-                float medalY = MathHelper.Lerp(medalStartY, medalEndY, Math.Min(medalPhase * 1.8f, 1f));
-
-                // Sparkle glow behind medal
-                if (medalPhase > 0.3f)
-                {
-                    float sparkle = (float)Math.Sin(_appleRewardTimer * 8);
-                    Color glowColor = Color.Gold * (0.2f + sparkle * 0.15f);
-                    _spriteBatch.Draw(_pixel,
-                        new Rectangle((int)medalX - 12, (int)medalY - 12, 64, 72), glowColor);
-                }
-
-                _spriteBatch.Draw(_goldMedalTexture,
-                    new Rectangle((int)medalX, (int)medalY, 48, 56), Color.White);
-
-                if (medalPhase > 0.6f)
-                {
-                    float textAlpha = Math.Min(1f, (medalPhase - 0.6f) / 0.2f);
-                    DrawCenteredText("Gold Medal Champion!", _titleFont, horseY + 155,
-                        Color.Gold * textAlpha);
-                }
-            }
-
-            // Shooting star across the sky
-            float shootCycle = (_appleRewardTimer * 0.8f) % 4f;
-            if (shootCycle < 1f)
-            {
-                float sx = MathHelper.Lerp(ScreenWidth + 40, -100, shootCycle);
-                float sy = MathHelper.Lerp(30, 150, shootCycle);
-                float shootAlpha = shootCycle < 0.5f ? shootCycle * 2f : (1f - shootCycle) * 2f;
-                _spriteBatch.Draw(_shootingStarTexture,
-                    new Rectangle((int)sx, (int)sy, 80, 20),
-                    Color.White * shootAlpha);
+                float angle = _appleRewardTimer * 2f + i * (MathHelper.TwoPi / 6);
+                float radius = 70 + (float)Math.Sin(_appleRewardTimer * 3 + i) * 18;
+                float sx = cx + (float)Math.Cos(angle) * radius;
+                float sy = (riderRestY + 60) + (float)Math.Sin(angle) * radius * 0.5f;
+                float sz = 22 + (float)Math.Sin(_appleRewardTimer * 5 + i * 2) * 8;
+                _spriteBatch.Draw(_sparklesTexture, new Rectangle((int)sx, (int)sy, (int)sz, (int)sz),
+                    Color.White * sa);
             }
         }
 
-        // Stats
-        GetObstacleCounts(out int cleared, out int total);
-        DrawCenteredText($"Final Score: {_score}", _gameFont, 460, Color.White);
-        DrawCenteredText($"Obstacles Cleared: {cleared}/{total}", _gameFont, 490, Color.Gold);
-        DrawCenteredText($"Lives Remaining: {_player.Lives}/3", _gameFont, 520, Color.LightCoral);
+        // Confetti rains down once the leap begins.
+        if (animProgress >= pA)
+            DrawConfetti(Math.Min(1f, (animProgress - pA) * 3f));
 
-        // Restart prompt after animation
+        // Stats (top-left so they don't cover the podium).
+        GetObstacleCounts(out int cleared, out int total);
+        _spriteBatch.Draw(_pixel, new Rectangle(20, 96, 300, 96), new Color(0, 0, 0, 140));
+        _spriteBatch.DrawString(_gameFont, $"Final Score: {_score}", new Vector2(34, 104), Color.White);
+        _spriteBatch.DrawString(_gameFont, $"Obstacles Cleared: {cleared}/{total}", new Vector2(34, 134), Color.Gold);
+        _spriteBatch.DrawString(_gameFont, $"Lives Remaining: {_player.Lives}/3", new Vector2(34, 164), Color.LightCoral);
+
+        // Restart prompt after the animation.
         if (_appleRewardTimer > AppleRewardDuration)
-            DrawCenteredText("Press SPACE to play again!", _gameFont, 580, Color.LimeGreen);
+            DrawCenteredText("Press SPACE to play again!", _gameFont, 690, Color.LimeGreen);
+    }
+
+    private void DrawPodiumBlock(Rectangle r, Color face, Color shade, string label)
+    {
+        _spriteBatch.Draw(_pixel, r, face);
+        // top highlight strip + base shadow for a little depth
+        _spriteBatch.Draw(_pixel, new Rectangle(r.X, r.Y, r.Width, 6), Color.Lerp(face, Color.White, 0.4f));
+        _spriteBatch.Draw(_pixel, new Rectangle(r.X, r.Bottom - 10, r.Width, 10), shade);
+        _spriteBatch.Draw(_pixel, new Rectangle(r.X, r.Y, 4, r.Height), shade);
+        _spriteBatch.Draw(_pixel, new Rectangle(r.Right - 4, r.Y, 4, r.Height), shade);
+        Vector2 size = _titleFont.MeasureString(label);
+        _spriteBatch.DrawString(_titleFont, label,
+            new Vector2(r.X + (r.Width - size.X) / 2, r.Y + 24), new Color(70, 55, 20));
+    }
+
+    private static readonly Color[] ConfettiColors =
+    {
+        new Color(240, 80, 80), new Color(80, 160, 240), new Color(90, 210, 110),
+        new Color(245, 210, 70), new Color(220, 110, 220), new Color(255, 150, 60),
+        Color.White,
+    };
+
+    private void DrawConfetti(float alpha)
+    {
+        for (int i = 0; i < 60; i++)
+        {
+            float speed = 70 + (i % 6) * 26;
+            float x = (i * 97) % ScreenWidth + (float)Math.Sin(_appleRewardTimer * 2 + i) * 16;
+            float y = ((_appleRewardTimer * speed + i * 53) % (ScreenHeight + 40)) - 20;
+            int size = 6 + (i % 3) * 2;
+            Color c = ConfettiColors[i % ConfettiColors.Length] * alpha;
+            _spriteBatch.Draw(_pixel, new Rectangle((int)x, (int)y, size, size), c);
+        }
     }
 
     private void DrawGameOverScreen()
@@ -938,8 +1111,11 @@ public class HorseRunnerGame : Game
         };
         DrawCenteredText(goLevelText, _gameFont, 190, Color.Gray);
 
-        _spriteBatch.Draw(_horseFallTexture,
-            new Rectangle(ScreenWidth / 2 - 96, 220, 192, 140), Color.White);
+        var goFallDest = new Rectangle(ScreenWidth / 2 - 96, 220, 192, 140);
+        var goFallSrc = new Rectangle(0, 0, 192, 140);
+        _spriteBatch.Draw(_coatFall[_selectedHorse], goFallDest, goFallSrc, Color.White);
+        _spriteBatch.Draw(_jacketFallTexture, goFallDest, goFallSrc,
+            Player.MultiplyColor(RiderColors[_selectedRider], Color.White));
 
         GetObstacleCounts(out int cleared, out int total);
         DrawCenteredText($"Final Score: {_score}", _gameFont, 380, Color.White);
