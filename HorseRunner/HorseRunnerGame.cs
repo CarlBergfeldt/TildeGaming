@@ -61,6 +61,7 @@ public class HorseRunnerGame : Game
     // UI textures
     private Texture2D _heartTexture;
     private Texture2D _goldMedalTexture;
+    private Texture2D _shadowTexture;
     private Texture2D _pixel;
 
     // Fonts
@@ -90,8 +91,15 @@ public class HorseRunnerGame : Game
     };
     private static readonly string[] RiderColorNames =
         { "Yellow", "Blue", "White", "Black" };
+    private static readonly string[] LevelNames = { "Forest", "Arena", "Meadow" };
+    private static readonly Color[] LevelColors =
+    {
+        new Color(90, 170, 90), new Color(210, 185, 140), new Color(110, 120, 190),
+    };
     private int _selectedHorse;
     private int _selectedRider = 1; // default Blue (matches the classic rider)
+    private int _selectedStartLevel;
+    private int _selectFocus; // which row is focused: 0=horse, 1=rider, 2=level
     private float _menuTimer; // drives the running-horse preview animation
 
     // =======================================================================
@@ -208,6 +216,7 @@ public class HorseRunnerGame : Game
         // UI
         _heartTexture = Content.Load<Texture2D>("Sprites/heart");
         _goldMedalTexture = Content.Load<Texture2D>("Sprites/gold_medal");
+        _shadowTexture = Content.Load<Texture2D>("Sprites/shadow");
 
         _gameFont = Content.Load<SpriteFont>("GameFont");
         _titleFont = Content.Load<SpriteFont>("TitleFont");
@@ -259,7 +268,7 @@ public class HorseRunnerGame : Game
             RiderColors[_selectedRider],
             new Vector2(120, GroundY));
 
-        LoadLevel(0);
+        LoadLevel(_selectedStartLevel);
         _state = GameState.Playing;
     }
 
@@ -345,27 +354,36 @@ public class HorseRunnerGame : Game
         return current.IsKeyDown(key) && _prevKeyState.IsKeyUp(key);
     }
 
+    private static int Wrap(int value, int count) => ((value % count) + count) % count;
+
     private void UpdateHorseSelect(KeyboardState keyState, float dt)
     {
         _menuTimer += dt;
 
-        // LEFT / RIGHT cycles the horse coat.
-        if (IsKeyPressed(keyState, Keys.Right) || IsKeyPressed(keyState, Keys.D))
-            _selectedHorse = (_selectedHorse + 1) % CoatKeys.Length;
-        if (IsKeyPressed(keyState, Keys.Left) || IsKeyPressed(keyState, Keys.A))
-            _selectedHorse = (_selectedHorse + CoatKeys.Length - 1) % CoatKeys.Length;
-
-        // UP / DOWN cycles the rider jacket colour.
+        // UP / DOWN moves between the three rows (Horse / Rider / Level).
         if (IsKeyPressed(keyState, Keys.Down) || IsKeyPressed(keyState, Keys.S))
-            _selectedRider = (_selectedRider + 1) % RiderColors.Length;
+            _selectFocus = Wrap(_selectFocus + 1, 3);
         if (IsKeyPressed(keyState, Keys.Up) || IsKeyPressed(keyState, Keys.W))
-            _selectedRider = (_selectedRider + RiderColors.Length - 1) % RiderColors.Length;
+            _selectFocus = Wrap(_selectFocus - 1, 3);
 
-        // Number keys 1-4 pick a rider colour directly.
-        if (IsKeyPressed(keyState, Keys.D1)) _selectedRider = 0;
-        if (IsKeyPressed(keyState, Keys.D2)) _selectedRider = 1;
-        if (IsKeyPressed(keyState, Keys.D3)) _selectedRider = 2;
-        if (IsKeyPressed(keyState, Keys.D4)) _selectedRider = 3;
+        // LEFT / RIGHT changes the value of the focused row.
+        int dir = 0;
+        if (IsKeyPressed(keyState, Keys.Right) || IsKeyPressed(keyState, Keys.D)) dir = 1;
+        if (IsKeyPressed(keyState, Keys.Left) || IsKeyPressed(keyState, Keys.A)) dir = -1;
+        if (dir != 0)
+        {
+            if (_selectFocus == 0)
+                _selectedHorse = Wrap(_selectedHorse + dir, CoatKeys.Length);
+            else if (_selectFocus == 1)
+                _selectedRider = Wrap(_selectedRider + dir, RiderColors.Length);
+            else
+                _selectedStartLevel = Wrap(_selectedStartLevel + dir, LevelNames.Length);
+        }
+
+        // Number keys 1-3 jump straight to a starting level.
+        if (IsKeyPressed(keyState, Keys.D1)) _selectedStartLevel = 0;
+        if (IsKeyPressed(keyState, Keys.D2)) _selectedStartLevel = 1;
+        if (IsKeyPressed(keyState, Keys.D3)) _selectedStartLevel = 2;
 
         if (IsKeyPressed(keyState, Keys.Space) || IsKeyPressed(keyState, Keys.Enter))
             StartRun();
@@ -646,8 +664,21 @@ public class HorseRunnerGame : Game
         foreach (var obstacle in _obstacles)
             obstacle.Draw(_spriteBatch);
 
+        DrawPlayerShadow();
         _player.Draw(_spriteBatch);
         DrawHUD(level);
+    }
+
+    // Soft contact shadow under the horse; it shrinks and fades as the horse
+    // jumps higher off the ground.
+    private void DrawPlayerShadow()
+    {
+        float k = MathHelper.Clamp(1f - _player.AirHeight / 280f, 0.4f, 1f);
+        int sw = (int)(150 * k);
+        int sh = (int)(28 * k);
+        int sx = (int)(_player.Position.X + _player.Width / 2f) - sw / 2;
+        int sy = GroundY - sh / 2 + 4;
+        _spriteBatch.Draw(_shadowTexture, new Rectangle(sx, sy, sw, sh), Color.White * (0.55f * k));
     }
 
     private void DrawHUD(int level)
@@ -768,52 +799,71 @@ public class HorseRunnerGame : Game
 
     private void DrawHorseSelect()
     {
-        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 190));
+        _spriteBatch.Draw(_pixel, new Rectangle(0, 0, ScreenWidth, ScreenHeight), new Color(0, 0, 0, 200));
 
-        DrawCenteredText("Choose Your Horse & Rider", _titleFont, 36, Color.Gold);
+        DrawCenteredText("Choose Your Ride", _titleFont, 18, Color.Gold);
 
         // Big animated preview of the chosen combination.
         DrawHorseRiderRunning(_selectedHorse, _selectedRider,
-            new Rectangle(ScreenWidth / 2 - 150, 120, 300, 218), _menuTimer, Color.White);
+            new Rectangle(ScreenWidth / 2 - 130, 62, 260, 190), _menuTimer, Color.White);
 
         // ---- Horse row ----
-        DrawCenteredText("Horse  (< LEFT / RIGHT >)", _gameFont, 348, new Color(200, 220, 255));
+        DrawRowLabel("Horse", 260, _selectFocus == 0);
         int n = CoatKeys.Length;
-        int cellW = 150, cellH = 90, gap = 24;
-        int rowW = n * cellW + (n - 1) * gap;
-        int startX = (ScreenWidth - rowW) / 2;
-        int rowY = 372;
+        int cellW = 150, cellH = 80, gap = 24;
+        int startX = (ScreenWidth - (n * cellW + (n - 1) * gap)) / 2;
+        int rowY = 282;
         for (int i = 0; i < n; i++)
         {
             int cx = startX + i * (cellW + gap);
             bool sel = i == _selectedHorse;
             DrawSelectionBox(new Rectangle(cx, rowY, cellW, cellH), sel);
             DrawHorseRiderStill(i, _selectedRider,
-                new Rectangle(cx + cellW / 2 - 64, rowY - 6, 128, 93), Color.White);
-            DrawCenteredTextIn(CoatNames[i], _gameFont, cx, cellW, rowY + cellH - 26,
-                sel ? Color.Gold : Color.White);
-            DrawCenteredTextIn(CoatDescriptions[i], _gameFont, cx, cellW, rowY + cellH - 4,
-                sel ? new Color(255, 230, 150) : Color.Gray);
+                new Rectangle(cx + cellW / 2 - 58, rowY - 12, 116, 85), Color.White);
+            DrawCenteredTextIn(CoatNames[i] + " - " + CoatDescriptions[i], _gameFont,
+                cx, cellW, rowY + cellH - 24, sel ? Color.Gold : Color.White);
         }
 
         // ---- Rider colour row ----
-        DrawCenteredText("Rider Colour  (^ UP / DOWN v  or  1-4)", _gameFont, 498, new Color(200, 220, 255));
+        DrawRowLabel("Rider Colour", 380, _selectFocus == 1);
         int m = RiderColors.Length;
-        int sw = 110, sgap = 18, sh = 64;
-        int srowW = m * sw + (m - 1) * sgap;
-        int sStartX = (ScreenWidth - srowW) / 2;
-        int sRowY = 522;
+        int sw = 110, sgap = 18, sh = 56;
+        int sStartX = (ScreenWidth - (m * sw + (m - 1) * sgap)) / 2;
+        int sRowY = 402;
         for (int i = 0; i < m; i++)
         {
             int cx = sStartX + i * (sw + sgap);
             bool sel = i == _selectedRider;
             DrawSelectionBox(new Rectangle(cx, sRowY, sw, sh), sel);
-            _spriteBatch.Draw(_pixel, new Rectangle(cx + 12, sRowY + 10, sw - 24, 26), RiderColors[i]);
+            _spriteBatch.Draw(_pixel, new Rectangle(cx + 12, sRowY + 8, sw - 24, 22), RiderColors[i]);
             DrawCenteredTextIn(RiderColorNames[i], _gameFont, cx, sw, sRowY + sh - 22,
                 sel ? Color.Gold : Color.White);
         }
 
-        DrawCenteredText("Press SPACE or ENTER to ride!", _gameFont, 626, Color.LimeGreen);
+        // ---- Starting level row ----
+        DrawRowLabel("Starting Level", 474, _selectFocus == 2);
+        int L = LevelNames.Length;
+        int lw = 150, lgap = 24, lh = 64;
+        int lStartX = (ScreenWidth - (L * lw + (L - 1) * lgap)) / 2;
+        int lRowY = 496;
+        for (int i = 0; i < L; i++)
+        {
+            int cx = lStartX + i * (lw + lgap);
+            bool sel = i == _selectedStartLevel;
+            DrawSelectionBox(new Rectangle(cx, lRowY, lw, lh), sel);
+            _spriteBatch.Draw(_pixel, new Rectangle(cx + 10, lRowY + 10, lw - 20, 16), LevelColors[i]);
+            DrawCenteredTextIn($"{i + 1}. {LevelNames[i]}", _gameFont, cx, lw, lRowY + lh - 26,
+                sel ? Color.Gold : Color.White);
+        }
+
+        DrawCenteredText("UP / DOWN: pick a row     LEFT / RIGHT: change", _gameFont, 588, new Color(200, 220, 255));
+        DrawCenteredText("Press SPACE or ENTER to ride!", _gameFont, 624, Color.LimeGreen);
+    }
+
+    private void DrawRowLabel(string text, float y, bool focused)
+    {
+        string label = focused ? "> " + text + " <" : text;
+        DrawCenteredText(label, _gameFont, y, focused ? Color.Gold : new Color(150, 160, 185));
     }
 
     private void DrawSelectionBox(Rectangle r, bool selected)

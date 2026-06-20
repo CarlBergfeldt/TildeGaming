@@ -29,6 +29,10 @@ public class Player
     private int _totalRunFrames;
     private float _frameTimer;
     private float _frameInterval = 0.1f;
+    private float _animClock; // free-running clock for the gallop bob
+
+    // How far the horse is rendered larger than its logical (hitbox) size.
+    private const float VisualScale = 1.12f;
 
     // =======================================================================
     // GAMEPLAY TUNING: Jump Physics
@@ -127,8 +131,14 @@ public class Player
         Position.Y = _groundY;
     }
 
+    // How high the horse currently is above the ground (0 when grounded) -
+    // used to size the contact shadow.
+    public float AirHeight => Math.Max(0f, _groundY - Position.Y);
+
     public void Update(float dt)
     {
+        _animClock += dt;
+
         // Handle fall-off state
         if (IsFalling)
         {
@@ -236,7 +246,16 @@ public class Player
             tint = blink > 0 ? Color.White : Color.White * 0.3f;
         }
 
-        var dest = new Rectangle((int)Position.X, (int)Position.Y, _frameWidth, _frameHeight);
+        // Render a little larger than the logical hitbox, bottom-aligned so the
+        // hooves stay on the ground, with a gentle gallop bob while running.
+        float bob = (!IsJumping && !IsFalling)
+            ? (float)Math.Sin(_animClock * 12f) * 2.5f
+            : 0f;
+        int vw = (int)(_frameWidth * VisualScale);
+        int vh = (int)(_frameHeight * VisualScale);
+        int vx = (int)(Position.X - (vw - _frameWidth) / 2f);
+        int vy = (int)(Position.Y - (vh - _frameHeight) + bob);
+        var dest = new Rectangle(vx, vy, vw, vh);
 
         // Layer 1: the horse coat (+ rider body) ...
         spriteBatch.Draw(coat, dest, sourceRect, tint);

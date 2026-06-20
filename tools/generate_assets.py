@@ -25,6 +25,58 @@ SPRITES = os.path.join(ROOT, "HorseRunner", "Content", "Sprites")
 
 
 # ---------------------------------------------------------------------------
+# Shared "polish" helpers used to lift the flat sprites: soft volume shading
+# plus a crisp darker rim so the silhouette reads well at the larger in-game
+# size.
+# ---------------------------------------------------------------------------
+def add_form_shading(img, top_boost=24, bottom_drop=34):
+    """Lighten the top of the silhouette and darken the bottom for volume."""
+    px = img.load()
+    W, H = img.size
+    ymin, ymax = H, 0
+    for y in range(H):
+        for x in range(W):
+            if px[x, y][3] > 20:
+                ymin = min(ymin, y)
+                ymax = max(ymax, y)
+    if ymax <= ymin:
+        return img
+    span = float(ymax - ymin)
+    for y in range(H):
+        frac = (y - ymin) / span
+        delta = int(top_boost * (1 - frac) - bottom_drop * frac)
+        for x in range(W):
+            r, g, b, a = px[x, y]
+            if a > 20:
+                px[x, y] = (max(0, min(255, r + delta)),
+                            max(0, min(255, g + delta)),
+                            max(0, min(255, b + delta)), a)
+    return img
+
+
+def add_outline(img, factor=0.5):
+    """Darken edge pixels (pixels touching transparency) for a crisp rim."""
+    src = img.copy()
+    sp = src.load()
+    dp = img.load()
+    W, H = img.size
+    for y in range(H):
+        for x in range(W):
+            r, g, b, a = sp[x, y]
+            if a <= 20:
+                continue
+            edge = False
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if nx < 0 or ny < 0 or nx >= W or ny >= H or sp[nx, ny][3] <= 20:
+                    edge = True
+                    break
+            if edge:
+                dp[x, y] = (int(r * factor), int(g * factor), int(b * factor), a)
+    return img
+
+
+# ---------------------------------------------------------------------------
 # 1. FOREST BACKGROUND  (400 x 380, tiles horizontally)
 # ---------------------------------------------------------------------------
 def gen_forest_bg():
@@ -220,7 +272,11 @@ def split_horse(src_name):
 
     base = src_name.replace("horse_rider_", "").replace(".png", "")  # run/jump/fall
     for name in COAT_RAMPS:
-        coat_imgs[name].save(os.path.join(SPRITES, f"horse_{name}_{base}.png"))
+        img = coat_imgs[name]
+        add_form_shading(img)        # volume
+        add_outline(img, 0.5)        # crisp rim
+        img.save(os.path.join(SPRITES, f"horse_{name}_{base}.png"))
+    add_outline(jacket, 0.6)         # keep it tintable but crisp
     jacket.save(os.path.join(SPRITES, f"rider_jacket_{base}.png"))
     print(f"split {src_name} -> coats + jacket ({base})")
 
@@ -284,13 +340,36 @@ def gen_rider_stand():
     jd.polygon([(cx + 11, 46), (cx + 4, 48), (cx + 20, 28), (cx + 26, 30)],
                fill=col)
 
+    add_outline(body, 0.5)
+    add_outline(jacket, 0.6)
     body.save(os.path.join(SPRITES, "rider_stand.png"))
     jacket.save(os.path.join(SPRITES, "rider_stand_jacket.png"))
     print("rider_stand.png + rider_stand_jacket.png written")
+
+
+# ---------------------------------------------------------------------------
+# 4. SOFT CONTACT SHADOW (drawn on the ground under the horse / obstacles)
+# ---------------------------------------------------------------------------
+def gen_shadow():
+    W, H = 96, 30
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    px = img.load()
+    cx, cy = W / 2.0, H / 2.0
+    for y in range(H):
+        for x in range(W):
+            dx = (x - cx) / cx
+            dy = (y - cy) / cy
+            d = dx * dx + dy * dy
+            if d < 1.0:
+                a = int(120 * (1.0 - d) ** 1.5)
+                px[x, y] = (0, 0, 0, a)
+    img.save(os.path.join(SPRITES, "shadow.png"))
+    print("shadow.png written")
 
 
 if __name__ == "__main__":
     gen_forest_bg()
     gen_horse_layers()
     gen_rider_stand()
+    gen_shadow()
     print("done")
