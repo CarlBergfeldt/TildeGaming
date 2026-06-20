@@ -165,5 +165,69 @@ dotnet run
 ## Controls
 - **Space** or **Up Arrow**: Jump
 - **Escape**: Quit
-- **Space/Enter**: Start game (on title screen)
+- **Space/Enter**: Title → Horse select → Start
+- On the **Horse & Rider** select screen:
+  - **Left / Right**: change horse (Bramble / Shadow / Snowflake)
+  - **Up / Down** or **1-4**: change rider colour (Yellow / Blue / White / Black)
+  - **Space / Enter**: start riding
 - **R** or **Space/Enter**: Restart (on win/game over screen)
+
+---
+
+## Generated Art (`tools/generate_assets.py`)
+
+Several sprites are produced by a Python/Pillow script so they can be tweaked
+and regenerated reproducibly:
+
+```bash
+pip install Pillow
+python3 tools/generate_assets.py
+```
+
+It writes:
+- **`forest_bg.png`** – a richer forest with mixed tree types (tall pines,
+  short pines, round broad-leaf trees) at varying heights, depth layers,
+  hazy hills and a sky gradient. Tiles seamlessly (edge trees are wrapped).
+- **`horse_<coat>_{run,jump,fall}.png`** – the horse + rider art split out of
+  the original combined sprites into three recolourable coats
+  (`chestnut`, `black`, `snow`). The rider's navy jacket is removed from these.
+- **`rider_jacket_{run,jump,fall}.png`** – the rider's jacket/helmet as a
+  greyscale layer that is **tinted at draw time** to any rider colour.
+- **`rider_stand.png` / `rider_stand_jacket.png`** – a standing, arms-raised
+  rider used for the podium victory finish.
+
+### How the layered horse works
+The game draws the horse in two passes: the **coat layer** (untinted) and then
+the **jacket layer** multiplied by the chosen rider colour. This gives
+3 coats × 4 rider colours from a small number of sprites. See
+`Player.Draw` and `HorseRunnerGame.DrawHorseRider*`.
+
+---
+
+## Making the graphics more "realistic" – ideas
+
+This is a stylised 2D game, so "realistic" mostly means **more depth, variety
+and lighting**. Concrete, cheap-to-implement ideas:
+
+1. **Variety & irregularity** – real forests aren't a row of identical trees.
+   The new `forest_bg` randomises tree type, height, width and spacing. Apply
+   the same idea to bushes, rocks and logs (a few size/tint variants each).
+2. **Parallax depth layers** – draw 2-3 background layers scrolling at
+   different speeds (far hills slow, near trees faster). The engine already
+   supports a parallax factor in `DrawBackground`; add a mid layer for more
+   depth.
+3. **Light & shadow** – add a sun-side highlight and an opposite-side shade on
+   every shape (the trees/podium now do this). Add soft **contact shadows**
+   (a dark translucent ellipse) under the horse and obstacles so they sit on
+   the ground instead of floating.
+4. **Atmospheric perspective** – fade distant objects toward the sky colour
+   (lower contrast/saturation) so depth reads instantly.
+5. **Gradients over flat fills** – skies, ground and water look far better as
+   vertical gradients than single colours.
+6. **Motion & life** – swaying grass/leaves, dust kicked up by hooves,
+   parallax clouds, the existing fireflies/shooting stars. Small movement sells
+   realism more than detail.
+7. **Texture/noise** – a little per-pixel noise on ground and bark breaks up
+   flat areas (keep it subtle).
+8. **Higher-resolution source art** – draw sprites at 2× and let them scale
+   down for crisper edges, or hand-paint key art in Aseprite/Krita.
