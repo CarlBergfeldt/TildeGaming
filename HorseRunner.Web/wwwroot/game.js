@@ -1,15 +1,25 @@
-const W = 320, H = 180, GROUND = 142;
-export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-export const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-export const scoreText = value => Math.max(0, Math.floor(value)).toString().padStart(5, "0");
+import {
+  FIXED_STEP,
+  GROUND,
+  LOGICAL_HEIGHT as H,
+  LOGICAL_WIDTH as W,
+  clamp,
+  horseHitbox,
+  obstacleDelay,
+  obstacleForScore,
+  overlaps,
+  scoreText
+} from "./game-core.js";
 
 const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
-const ui = Object.fromEntries(["score","best","lives","status","start-card","pause","sound"].map(id => [id, document.getElementById(id)]));
+const ui = Object.fromEntries(["score","best","lives","status","start-card","pause","restart","sound"].map(id => [id, document.getElementById(id)]));
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let audio;
-let state = "title", last = 0, accumulator = 0, world = 0, score = 0, best = Number(localStorage.getItem("horseRunnerBest") || 0), lives = 3, spawnIn = 1.1, flash = 0;
+function readBest() { try { return Number(localStorage.getItem("horseRunnerBest") || 0); } catch { return 0; } }
+function writeBest(value) { try { localStorage.setItem("horseRunnerBest", value); } catch { /* Storage is optional. */ } }
+let state = "title", last = 0, accumulator = 0, world = 0, score = 0, best = readBest(), lives = 3, spawnIn = 1.1, flash = 0;
 let horse = { x:58, y:GROUND-27, w:43, h:27, vy:0, grounded:true, invincible:0, phase:0 };
 let obstacles = [], dust = [];
 ui.best.textContent = scoreText(best);
@@ -33,10 +43,9 @@ function togglePause() {
   ui.status.textContent=state === "paused" ? "Run paused." : "Back on the trail.";
 }
 function spawn() {
-  const types=[{kind:"log",w:20,h:13},{kind:"stump",w:14,h:19},{kind:"fence",w:25,h:22}];
-  const item=types[Math.min(types.length-1,Math.floor(score/450)) % types.length];
+  const item=obstacleForScore(score);
   obstacles.push({...item,x:W+10,y:GROUND-item.h,hit:false});
-  spawnIn=clamp(1.45-score/5000,.82,1.45)+(Math.random()*.34);
+  spawnIn=obstacleDelay(score);
 }
 function burst(x,y,count=8) { if(reducedMotion)return; for(let i=0;i<count;i++) dust.push({x,y,vx:-12-Math.random()*22,vy:-5-Math.random()*16,t:.35+Math.random()*.25}); }
 function update(dt) {
@@ -45,12 +54,12 @@ function update(dt) {
   if(!horse.grounded){ horse.vy+=260*dt; horse.y+=horse.vy*dt; if(horse.y>=GROUND-horse.h){horse.y=GROUND-horse.h;horse.vy=0;horse.grounded=true;burst(horse.x+18,GROUND-1);beep(150,.035);} }
   spawnIn-=dt; if(spawnIn<=0) spawn();
   const speed=55+clamp(score/70,0,28);
-  for(const item of obstacles){ item.x-=speed*dt; const hb={x:horse.x+8,y:horse.y+5,w:horse.w-15,h:horse.h-7}; if(!item.hit && horse.invincible<=0 && overlaps(hb,item)){item.hit=true;lives--;horse.invincible=1.35;flash=.18;burst(item.x,item.y,12);beep(80,.13);ui.status.textContent=lives?"Ouch! Bramble is shaken, but still running.":"The trail wins this time."; if(!lives) endGame();} }
+  for(const item of obstacles){ item.x-=speed*dt; const hb=horseHitbox(horse); if(!item.hit && horse.invincible<=0 && overlaps(hb,item)){item.hit=true;lives--;horse.invincible=1.35;flash=.18;burst(item.x,item.y,12);beep(80,.13);ui.status.textContent=lives?"Ouch! Bramble is shaken, but still running.":"The trail wins this time."; if(!lives) endGame();} }
   obstacles=obstacles.filter(o=>o.x>-35);
   for(const p of dust){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=35*dt;p.t-=dt;} dust=dust.filter(p=>p.t>0);
   updateUi();
 }
-function endGame(){ state="gameover"; best=Math.max(best,Math.floor(score));localStorage.setItem("horseRunnerBest",best);ui.best.textContent=scoreText(best);ui["start-card"].hidden=false;ui["start-card"].querySelector(".ribbon").textContent="Trail record · "+scoreText(score);ui["start-card"].querySelector("h2").textContent="Ride again?";ui["start-card"].querySelector("p:not(.ribbon)").textContent="A brave run through Bramblewood. The trail is ready whenever you are.";document.querySelector("#start").textContent="Try again"; }
+function endGame(){ state="gameover"; best=Math.max(best,Math.floor(score));writeBest(best);ui.best.textContent=scoreText(best);ui["start-card"].hidden=false;ui["start-card"].querySelector(".ribbon").textContent="Trail record · "+scoreText(score);ui["start-card"].querySelector("h2").textContent="Ride again?";ui["start-card"].querySelector("p:not(.ribbon)").textContent="A brave run through Bramblewood. The trail is ready whenever you are.";document.querySelector("#start").textContent="Try again";document.querySelector("#start").focus(); }
 function updateUi(){ui.score.textContent=scoreText(score);ui.lives.textContent=Array.from({length:3},(_,i)=>i<lives?"♥":"·").join(" ");ui.lives.setAttribute("aria-label",`${lives} ${lives===1?"life":"lives"}`);}
 
 function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),w,h);}
@@ -74,8 +83,9 @@ function drawHorse(){
 }
 function drawObstacle(o){if(o.kind==="log"){rect(o.x,o.y+3,o.w,o.h-3,"#6b3e2e");rect(o.x+2,o.y+1,o.w-5,4,"#9a6841");rect(o.x+o.w-5,o.y+4,5,8,"#c09157");rect(o.x+o.w-3,o.y+6,2,4,"#745038");}else if(o.kind==="stump"){rect(o.x+3,o.y,o.w-6,o.h,"#71432e");rect(o.x,o.y,o.w,5,"#ae7d4d");rect(o.x+2,o.y+2,o.w-4,1,"#6d4b35");}else{rect(o.x+2,o.y,3,o.h,"#eee0a2");rect(o.x+o.w-5,o.y,3,o.h,"#eee0a2");rect(o.x,o.y+5,o.w,4,"#b74d3d");rect(o.x,o.y+13,o.w,4,"#f0dc96");}}
 function draw(){drawBackground();obstacles.forEach(drawObstacle);dust.forEach(p=>rect(p.x,p.y,2,2,"#d3ad69"));drawHorse();rect(8,8,82,12,"#172536");rect(10,10,clamp(78-(score%500)/500*78,0,78),8,"#f0bc3e");ctx.fillStyle="#fff0bd";ctx.font="7px monospace";ctx.fillText("BRAMBLEWOOD",11,6);if(state==="paused"){rect(0,0,W,H,"rgba(10,16,25,.65)");ctx.fillStyle="#fff0bd";ctx.font="bold 16px monospace";ctx.textAlign="center";ctx.fillText("TRAIL PAUSED",W/2,88);ctx.textAlign="start";}if(flash>0)rect(0,0,W,H,"rgba(255,226,170,.28)");}
-function loop(now){const dt=Math.min((now-last)/1000,.1)||0;last=now;accumulator+=dt;while(accumulator>=1/60){update(1/60);accumulator-=1/60;}draw();requestAnimationFrame(loop);}
+function loop(now){const dt=Math.min((now-last)/1000,.1)||0;last=now;accumulator+=dt;while(accumulator>=FIXED_STEP){update(FIXED_STEP);accumulator-=FIXED_STEP;}draw();requestAnimationFrame(loop);}
 function beep(freq,duration){if(ui.sound.getAttribute("aria-pressed")==="true")return;try{audio??=new AudioContext();const osc=audio.createOscillator(),gain=audio.createGain();osc.type="square";osc.frequency.value=freq;gain.gain.setValueAtTime(.025,audio.currentTime);gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);osc.connect(gain).connect(audio.destination);osc.start();osc.stop(audio.currentTime+duration);}catch{}}
-document.querySelector("#start").addEventListener("click",reset);document.querySelector("#jump").addEventListener("pointerdown",e=>{e.preventDefault();jump();});canvas.addEventListener("pointerdown",jump);ui.pause.addEventListener("click",togglePause);ui.sound.addEventListener("click",()=>{const muted=ui.sound.getAttribute("aria-pressed")!=="true";ui.sound.setAttribute("aria-pressed",String(muted));ui.sound.textContent=muted?"♪ Off":"♪ On";});
-addEventListener("keydown",e=>{if(["Space","ArrowUp","KeyW"].includes(e.code)){e.preventDefault();jump();}if(e.code==="KeyP"||e.code==="Escape")togglePause();});addEventListener("blur",()=>{if(state==="playing")togglePause();});
+document.querySelector("#start").addEventListener("click",reset);document.querySelector("#jump").addEventListener("pointerdown",e=>{e.preventDefault();jump();});canvas.addEventListener("pointerdown",jump);ui.pause.addEventListener("click",togglePause);ui.restart.addEventListener("click",reset);ui.sound.addEventListener("click",()=>{const muted=ui.sound.getAttribute("aria-pressed")!=="true";ui.sound.setAttribute("aria-pressed",String(muted));ui.sound.textContent=muted?"♪ Off":"♪ On";});
+addEventListener("keydown",e=>{if(document.body.dataset.view!=="runner")return;if(["Space","ArrowUp","KeyW"].includes(e.code)){e.preventDefault();jump();}if(e.code==="KeyP"||e.code==="Escape")togglePause();});addEventListener("blur",()=>{if(state==="playing")togglePause();});
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&state==="playing")togglePause();});
 requestAnimationFrame(loop);

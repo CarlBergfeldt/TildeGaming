@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "settings": { "laps": 5, "baseSpeed": 31, "turnSpeed": 2.6, "jumpPower": 72, "gravity": 115, "hitPenalty": 4 },
+  "scenes": [
+    {
+      "id": "royal-arena",
+      "name": "Royal Sand Arena",
+      "palette": { "sand": "#c99b62", "rail": "#fff0bd", "grass": "#426b45", "crowd": "#693f55" },
+      "start": { "x": 70, "y": 48, "angle": 0 },
+      "checkpoints": [{ "x": 160, "y": 34 }, { "x": 274, "y": 90 }, { "x": 160, "y": 146 }, { "x": 46, "y": 90 }],
+      "objects": [
+        { "id": "jump-1", "type": "jump", "x": 158, "y": 40, "height": 1, "rotation": 0 },
+        { "id": "jump-2", "type": "jump", "x": 266, "y": 88, "height": 2, "rotation": 1.57 },
+        { "id": "jump-3", "type": "jump", "x": 158, "y": 140, "height": 3, "rotation": 0 },
+        { "id": "cone-1", "type": "cone", "x": 54, "y": 72, "height": 0, "rotation": 0 },
+        { "id": "cone-2", "type": "cone", "x": 54, "y": 108, "height": 0, "rotation": 0 }
+      ]
+    }
+  ]
+}
