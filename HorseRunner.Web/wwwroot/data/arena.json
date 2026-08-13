@@ -4,16 +4,34 @@
   "scenes": [
     {
       "id": "royal-arena",
-      "name": "Royal Sand Arena",
+      "name": "Royal Four-Fence Course",
       "palette": { "sand": "#c99b62", "rail": "#fff0bd", "grass": "#426b45", "crowd": "#693f55" },
-      "start": { "x": 70, "y": 48, "angle": 0 },
-      "checkpoints": [{ "x": 160, "y": 34 }, { "x": 274, "y": 90 }, { "x": 160, "y": 146 }, { "x": 46, "y": 90 }],
+      "start": { "x": 55, "y": 140, "angle": -1.5708 },
+      "checkpoints": [
+        { "x": 55, "y": 40 },
+        { "x": 120, "y": 40 },
+        { "x": 120, "y": 140 },
+        { "x": 190, "y": 140 },
+        { "x": 190, "y": 40 },
+        { "x": 260, "y": 40 },
+        { "x": 260, "y": 140 },
+        { "x": 55, "y": 140 }
+      ],
       "objects": [
-        { "id": "jump-1", "type": "jump", "x": 158, "y": 40, "height": 1, "rotation": 0 },
-        { "id": "jump-2", "type": "jump", "x": 266, "y": 88, "height": 2, "rotation": 1.57 },
-        { "id": "jump-3", "type": "jump", "x": 158, "y": 140, "height": 3, "rotation": 0 },
-        { "id": "cone-1", "type": "cone", "x": 54, "y": 72, "height": 0, "rotation": 0 },
-        { "id": "cone-2", "type": "cone", "x": 54, "y": 108, "height": 0, "rotation": 0 }
+        { "id": "fence-one", "type": "jump", "x": 55, "y": 91, "height": 1, "rotation": 0 },
+        { "id": "fence-two", "type": "vertical-rails", "x": 120, "y": 89, "height": 2, "rotation": 0 },
+        { "id": "fence-three", "type": "oxer", "x": 190, "y": 91, "height": 2, "rotation": 0 },
+        { "id": "fence-four", "type": "log-jump", "x": 260, "y": 89, "height": 1, "rotation": 0 },
+
+        { "id": "cone-turn-one", "type": "cone", "x": 55, "y": 27, "height": 0, "rotation": 0 },
+        { "id": "cone-turn-two", "type": "cone", "x": 120, "y": 27, "height": 0, "rotation": 0 },
+        { "id": "cone-turn-three", "type": "cone", "x": 120, "y": 153, "height": 0, "rotation": 0 },
+        { "id": "cone-turn-four", "type": "cone", "x": 190, "y": 153, "height": 0, "rotation": 0 },
+        { "id": "cone-turn-five", "type": "cone", "x": 190, "y": 27, "height": 0, "rotation": 0 },
+        { "id": "cone-turn-six", "type": "cone", "x": 260, "y": 27, "height": 0, "rotation": 0 },
+        { "id": "cone-turn-seven", "type": "cone", "x": 260, "y": 153, "height": 0, "rotation": 0 },
+        { "id": "cone-turn-eight", "type": "cone", "x": 55, "y": 153, "height": 0, "rotation": 0 },
+        { "id": "apple-distraction", "type": "apple", "x": 155, "y": 138, "height": 0, "rotation": 0 }
       ]
     }
   ]

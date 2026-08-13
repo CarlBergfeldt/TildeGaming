@@ -24,9 +24,24 @@ test("horse hitbox trims decorative pixels", async () => {
 });
 
 test("arena validation, clearance, and scores are deterministic", async () => {
-  const { addScore, finalScore, jumpClearance, qualifies, validateArena } = await import("../HorseRunner.Web/wwwroot/arena-core.js");
+  const { APPLE_EATING_SECONDS, ARENA_OBJECT_TYPES, addScore, directionIndex, finalScore, jumpClearance, paceSpeed, qualifies, validateArena } = await import("../HorseRunner.Web/wwwroot/arena-core.js");
   const arena = { version: 1, settings: { laps: 5 }, scenes: [{ id: "a", name: "Arena", objects: [{ id: "j", type: "jump", x: 1, y: 2, height: 2, rotation: 0 }] }] };
   assert.deepEqual(validateArena(arena), []);
+  assert.equal(directionIndex(0), 0);
+  assert.equal(directionIndex(Math.PI / 2), 2);
+  assert.equal(directionIndex(Math.PI), 4);
+  assert.equal(directionIndex(-Math.PI / 2), 6);
+  assert.equal(paceSpeed(30, 0), 0);
+  assert.equal(paceSpeed(30, 1), 18.6);
+  assert.equal(paceSpeed(30, 2), 30);
+  for (const type of ARENA_OBJECT_TYPES) {
+    arena.scenes[0].objects[0].type = type;
+    assert.deepEqual(validateArena(arena), [], `${type} should be valid editor data`);
+  }
+  assert.equal(APPLE_EATING_SECONDS, 5, "apple distraction should hold the horse for five seconds");
+  assert.ok(ARENA_OBJECT_TYPES.includes("apple"), "apple should be a valid arena editor object");
+  arena.scenes[0].objects[0].type = "unknown-prop";
+  assert.match(validateArena(arena).join(" "), /invalid object/);
   assert.equal(jumpClearance(13, 2), true);
   assert.equal(jumpClearance(12, 2), false);
   assert.equal(finalScore({ elapsed: 60, clearances: 10, faults: 1, laps: 5 }), 6430);

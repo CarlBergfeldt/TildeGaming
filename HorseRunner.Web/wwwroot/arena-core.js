@@ -1,5 +1,13 @@
 import { clamp } from "./game-core.js";
 
+export const ARENA_OBJECT_TYPES = Object.freeze([
+  "jump", "log-jump", "vertical-rails", "oxer", "cone", "dressage-marker",
+  "barrel", "hay-bale", "flower-planter", "saddle-rack", "water-trough", "arena-fence", "apple"
+]);
+
+export const JUMP_TYPES = Object.freeze(["jump", "log-jump", "vertical-rails", "oxer"]);
+export const APPLE_EATING_SECONDS = 5;
+
 export function validateArena(data) {
   const errors = [];
   if (!data || data.version !== 1) errors.push("version must be 1");
@@ -9,7 +17,7 @@ export function validateArena(data) {
     if (!scene.id || !scene.name) errors.push(`scene ${index + 1} needs id and name`);
     if (!Array.isArray(scene.objects)) errors.push(`scene ${index + 1} needs objects`);
     for (const object of (scene.objects || [])) {
-      if (!object.id || !["jump", "cone"].includes(object.type)) errors.push(`invalid object in scene ${index + 1}`);
+      if (!object.id || !ARENA_OBJECT_TYPES.includes(object.type)) errors.push(`invalid object in scene ${index + 1}`);
       if (![object.x, object.y, object.rotation, object.height].every(Number.isFinite)) errors.push(`${object.id || "object"} has invalid numbers`);
     }
   }
@@ -31,3 +39,13 @@ export function addScore(scores, entry) {
 export function jumpClearance(z, height) { return z >= 5 + clamp(height, 1, 3) * 4; }
 
 export function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+export function paceSpeed(baseSpeed, level) {
+  return baseSpeed * [0, .62, 1][clamp(Math.round(level), 0, 2)];
+}
+
+export function directionIndex(angle) {
+  const fullTurn = Math.PI * 2;
+  const normalized = ((angle % fullTurn) + fullTurn) % fullTurn;
+  return Math.round(normalized / (Math.PI / 4)) % 8;
+}
