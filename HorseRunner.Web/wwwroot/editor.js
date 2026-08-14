@@ -1,6 +1,6 @@
 import { getArenaData, setArenaData } from "./arena.js";
 import { ARENA_PROP_BY_TYPE, ARENA_PROPS, propSpritePath } from "./arena-assets.js";
-import { arenaFloor, validateArena } from "./arena-core.js";
+import { arenaFloor, propFacing, propFacingAngle, validateArena } from "./arena-core.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("editor-canvas");
@@ -22,8 +22,13 @@ Promise.all(ARENA_PROPS.map(async prop => propImages.set(prop.type, await loadIm
 function snapshot() { undo.push(JSON.stringify(data)); if (undo.length > 40) undo.shift(); redo = []; }
 function restore(stack, target) { if (!stack.length) return; target.push(JSON.stringify(data)); data = JSON.parse(stack.pop()); sceneIndex = Math.min(sceneIndex, data.scenes.length - 1); selection = []; render(); }
 function open() { data = getArenaData(); data.scenes.forEach(ensureScene); sceneIndex = 0; selection = []; selectedCheckpoint = -1; editorMode = "objects"; undo = []; redo = []; $("editor").hidden = false; render(); }
-function close() { $("editor").hidden = true; }
-function add(type) { const definition = ARENA_PROP_BY_TYPE.get(type); if (!definition) return; editorMode = "objects"; snapshot(); const id = `${type}-${Date.now()}`; scene().objects.push({ id, type, x: 160, y: 90, height: definition.behavior === "jump" ? 1 : 0, rotation: 0 }); selection = [id]; selectedCheckpoint = -1; render(); }
+function close() {
+  document.activeElement?.blur();
+  $("editor").hidden = true;
+  const gameCanvas = document.body.dataset.view === "arena" ? $("arena-game") : $("game");
+  requestAnimationFrame(() => gameCanvas?.focus());
+}
+function add(type) { const definition = ARENA_PROP_BY_TYPE.get(type); if (!definition) return; editorMode = "objects"; snapshot(); const id = `${type}-${Date.now()}`; scene().objects.push({ id, type, x: 160, y: 90, height: definition.behavior === "jump" ? 1 : 0, rotation: 0, facing: 0 }); selection = [id]; selectedCheckpoint = -1; render(); }
 function selected() { return scene().objects.filter(object => selection.includes(object.id)); }
 
 function initializePalette() {
@@ -40,14 +45,14 @@ function render() {
   $("prop-id").value = one?.id || "";
   $("prop-height").value = one?.height ?? 0;
   $("prop-height").disabled = oneDefinition?.behavior !== "jump";
-  $("prop-rotation").value = one ? Math.round(one.rotation * 180 / Math.PI) : 0;
+  document.querySelectorAll("#prop-facing").forEach(control => { control.value = one ? propFacing(one) : 0; control.disabled = editorMode !== "objects" || !one; });
   $("setting-laps").value = data.settings.laps; $("setting-speed").value = data.settings.baseSpeed; $("setting-jump").value = data.settings.jumpPower; $("setting-penalty").value = data.settings.hitPenalty;
   const floor = arenaFloor(currentScene);
   $("floor-width").value = floor.width; $("floor-height").value = floor.height; $("floor-size").textContent = `${floor.width} × ${floor.height} arena units`;
   document.querySelectorAll("[data-editor-mode]").forEach(button => button.classList.toggle("active", button.dataset.editorMode === editorMode));
   $("editor-hint").textContent = editorMode === "checkpoints" ? "Click to add ordered goal circles. Drag a circle to adjust the circuit." : editorMode === "start" ? "Click the floor to move the horse's start position." : "Choose a prop, then drag it into place. Shift-click for multiple selection.";
   $("delete-checkpoint").disabled = selectedCheckpoint < 0; $("clear-course").disabled = !currentScene.checkpoints.length;
-  $("prop-id").disabled = editorMode !== "objects"; $("prop-height").disabled = editorMode !== "objects" || oneDefinition?.behavior !== "jump"; $("prop-rotation").disabled = editorMode !== "objects";
+  $("prop-id").disabled = editorMode !== "objects"; $("prop-height").disabled = editorMode !== "objects" || oneDefinition?.behavior !== "jump";
   $("arena-json").value = JSON.stringify(data, null, 2); $("undo").disabled = !undo.length; $("redo").disabled = !redo.length;
   draw();
 }
@@ -76,13 +81,29 @@ function draw() {
   [...currentScene.objects].sort((a, b) => a.y - b.y).forEach(object => {
     const definition = ARENA_PROP_BY_TYPE.get(object.type), image = propImages.get(object.type);
     if (!definition) return;
-    ctx.save(); ctx.translate(object.x, object.y); ctx.rotate(object.rotation || 0);
-    ctx.beginPath(); ctx.ellipse(0, 1, definition.width * .36, Math.max(1.5, definition.height * .09), 0, 0, Math.PI * 2); ctx.fillStyle = "rgba(30,25,20,.22)"; ctx.fill();
-    if (image) ctx.drawImage(image, -definition.width / 2, -definition.height, definition.width, definition.height);
+    const facing = propFacing(object), projection = facingProjection(definition.width, definition.height, facing);
+    ctx.save(); ctx.translate(object.x, object.y);
+    ctx.save(); ctx.rotate(projection.angle); ctx.beginPath(); ctx.ellipse(0, 1, definition.width * .36, Math.max(1.5, definition.height * .09), 0, 0, Math.PI * 2); ctx.fillStyle = "rgba(30,25,20,.22)"; ctx.fill(); ctx.restore();
+    if (image) drawFacingImage(ctx, image, definition.width, definition.height, facing);
     else { ctx.fillStyle = "#f07b32"; ctx.fillRect(-4, -8, 8, 8); }
-    if (selection.includes(object.id)) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.setLineDash([2, 2]); ctx.strokeRect(-definition.width / 2 - 2, -definition.height - 2, definition.width + 4, definition.height + 5); }
+    if (selection.includes(object.id)) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.setLineDash([2, 2]); ctx.strokeRect(-projection.width / 2 - 2, -definition.height - projection.depth - 2, projection.width + 4, definition.height + projection.depth + 5); }
     ctx.restore();
   });
+}
+
+function facingProjection(width, height, facing) {
+  const angle = propFacingAngle(facing);
+  return { angle, width: Math.max(3, Math.abs(Math.cos(angle)) * width), depth: Math.abs(Math.sin(angle)) * width * .42, height };
+}
+
+function drawFacingImage(context, image, width, height, facing) {
+  const { angle } = facingProjection(width, height, facing), cosine = Math.cos(angle), sine = Math.sin(angle), slices = 48;
+  for (let index = 0; index < slices; index++) {
+    const sourceX = index * image.naturalWidth / slices, sourceWidth = image.naturalWidth / slices + .5;
+    const unit = (index + .5) / slices - .5, projectedWidth = Math.max(.7, width / slices * Math.max(.18, Math.abs(cosine)));
+    const x = unit * width * cosine, y = unit * width * sine * .42;
+    context.drawImage(image, sourceX, 0, sourceWidth, image.naturalHeight, x - projectedWidth / 2, -height + y, projectedWidth, height);
+  }
 }
 
 function point(event) { const bounds = canvas.getBoundingClientRect(); return { x: (event.clientX - bounds.left) * 320 / bounds.width, y: (event.clientY - bounds.top) * 180 / bounds.height }; }
@@ -106,6 +127,7 @@ canvas.addEventListener("pointermove", event => { if (!drag) return; const posit
 canvas.addEventListener("pointerup", () => drag = null);
 
 $("editor-open").addEventListener("click", open); $("editor-close").addEventListener("click", close);
+$("editor").addEventListener("keydown", event => { if (!$("editor").hidden) event.stopPropagation(); });
 $("prop-palette").addEventListener("click", event => { const button = event.target.closest("[data-add-type]"); if (button) add(button.dataset.addType); });
 document.querySelector(".editor-mode-tabs").addEventListener("click", event => { const button = event.target.closest("[data-editor-mode]"); if (!button) return; editorMode = button.dataset.editorMode; selection = []; selectedCheckpoint = -1; render(); });
 $("apply-settings").addEventListener("click", () => { snapshot(); data.settings.laps = Number($("setting-laps").value); data.settings.baseSpeed = Number($("setting-speed").value); data.settings.jumpPower = Number($("setting-jump").value); data.settings.hitPenalty = Number($("setting-penalty").value); render(); });
@@ -122,8 +144,18 @@ $("floor-height").addEventListener("input", () => $("floor-size").textContent = 
 $("apply-floor").addEventListener("click", () => { snapshot(); scene().floor = { width: Number($("floor-width").value), height: Number($("floor-height").value) }; const floor = arenaFloor(scene()); constrainToFloor(scene().start, floor); scene().checkpoints.forEach(goal => constrainToFloor(goal, floor)); render(); });
 $("delete-checkpoint").addEventListener("click", () => { if (selectedCheckpoint < 0) return; snapshot(); scene().checkpoints.splice(selectedCheckpoint, 1); selectedCheckpoint = -1; render(); });
 $("clear-course").addEventListener("click", () => { if (!scene().checkpoints.length) return; snapshot(); scene().checkpoints = []; selectedCheckpoint = -1; render(); });
-function updateProperties() { const items = selected(); if (!items.length) return; snapshot(); items.forEach((object, index) => { const definition = ARENA_PROP_BY_TYPE.get(object.type); if (index === 0 && $("prop-id").value.trim()) object.id = $("prop-id").value.trim(); object.height = definition?.behavior === "jump" ? Number($("prop-height").value) : 0; object.rotation = Number($("prop-rotation").value) * Math.PI / 180; }); selection = items.map(object => object.id); render(); }
-$("prop-id").addEventListener("change", updateProperties); $("prop-height").addEventListener("change", updateProperties); $("prop-rotation").addEventListener("change", updateProperties);
+function updateProperties() { const items = selected(); if (!items.length) return; snapshot(); items.forEach((object, index) => { const definition = ARENA_PROP_BY_TYPE.get(object.type); if (index === 0 && $("prop-id").value.trim()) object.id = $("prop-id").value.trim(); object.height = definition?.behavior === "jump" ? Number($("prop-height").value) : 0; object.facing = Number($("prop-facing").value); object.rotation = 0; }); selection = items.map(object => object.id); render(); }
+function updateFacing(event) {
+  const items = selected();
+  if (!items.length) { $("editor-message").textContent = "Select a prop before changing its facing."; return; }
+  const facing = Number(event.currentTarget.value);
+  snapshot();
+  items.forEach(object => { object.facing = facing; object.rotation = 0; });
+  $("editor-message").textContent = `Facing changed to ${event.currentTarget.options[event.currentTarget.selectedIndex].text}.`;
+  render();
+}
+$("prop-id").addEventListener("change", updateProperties); $("prop-height").addEventListener("change", updateProperties);
+document.querySelectorAll("#prop-facing").forEach(control => control.addEventListener("input", updateFacing));
 $("apply-json").addEventListener("click", () => { try { const parsed = JSON.parse($("arena-json").value), errors = validateArena(parsed); if (errors.length) throw new Error(errors.join("\n")); snapshot(); data = parsed; sceneIndex = 0; selection = []; $("editor-message").textContent = "JSON is valid."; render(); } catch (error) { $("editor-message").textContent = error.message; } });
 $("export-json").addEventListener("click", () => { const anchor = document.createElement("a"); anchor.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })); anchor.download = "horse-runner-arena.json"; anchor.click(); URL.revokeObjectURL(anchor.href); });
 $("import-json").addEventListener("change", async event => { $("arena-json").value = await event.target.files[0].text(); $("apply-json").click(); });

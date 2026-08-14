@@ -72,3 +72,20 @@ test("arena animation phases and faulted-fence rebuild are deterministic", async
   assert.equal(shouldRebuildObstacle(29, 10, 3, 2), true);
   assert.equal(shouldRebuildObstacle(40, 10, 1, 2), false);
 });
+
+test("arena props use five discrete upright facing directions", async () => {
+  const { propFacing, propFacingAngle } = await import("../HorseRunner.Web/wwwroot/arena-core.js");
+  assert.equal(propFacing({ facing: 0 }), 0);
+  assert.equal(propFacing({ facing: 4 }), 4);
+  assert.equal(propFacing({ rotation: Math.PI / 2 }), 2);
+  assert.equal(propFacing({ rotation: Math.PI }), 4);
+  assert.ok(propFacingAngle(2) < Math.PI / 2, "north-south view keeps a visible face for perspective");
+});
+
+test("arena run sprites face their movement direction", async () => {
+  const { HORSE_DIRECTIONS } = await import("../HorseRunner.Web/wwwroot/arena-assets.js");
+  assert.equal(HORSE_DIRECTIONS.find(direction => direction.id === "east").flip, false);
+  assert.equal(HORSE_DIRECTIONS.find(direction => direction.id === "southeast").flip, true);
+  assert.equal(HORSE_DIRECTIONS.find(direction => direction.id === "south").file, "03.png");
+  assert.equal(HORSE_DIRECTIONS.find(direction => direction.id === "west").flip, true);
+});

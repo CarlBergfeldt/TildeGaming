@@ -89,9 +89,23 @@ def render_preview() -> None:
     preview.save(PREVIEW)
 
 
+def process_gate() -> None:
+    source = Image.open(SOURCE / "arena-fence-gate-transparent.png").convert("RGBA")
+    bounds = source.getchannel("A").getbbox()
+    if bounds is None:
+        raise RuntimeError("Arena fence gate has no visible pixels")
+    subject = source.crop(bounds)
+    frame = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    scale = min(472 / subject.width, 448 / subject.height)
+    resized = subject.resize((round(subject.width * scale), round(subject.height * scale)), Image.Resampling.LANCZOS)
+    frame.alpha_composite(resized, ((512 - resized.width) // 2, 488 - resized.height))
+    frame.save(OUTPUT / "22.png")
+
+
 if __name__ == "__main__":
     OUTPUT.mkdir(parents=True, exist_ok=True)
     split_atlas("event-services-transparent.png", 14)
     split_atlas("spectators-transparent.png", 18)
+    process_gate()
     render_preview()
-    print("Wrote arena props 14.png through 21.png")
+    print("Wrote arena props 14.png through 22.png")

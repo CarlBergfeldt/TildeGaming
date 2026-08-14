@@ -200,6 +200,9 @@ ui.sound.addEventListener("click", () => { const muted = ui.sound.getAttribute("
 addEventListener("gameviewchange", syncHeaderControls);
 addEventListener("keydown", event => {
   if (document.body.dataset.view !== "runner") return;
+  const typingTarget = event.target.closest?.("input, textarea, select, [contenteditable='true']");
+  const editor = document.querySelector("#editor");
+  if (typingTarget && (!typingTarget.closest("#editor") || !editor.hidden)) return;
   if (["Space", "ArrowUp", "KeyW"].includes(event.code)) { event.preventDefault(); jump(); }
   if (event.code === "KeyP" || event.code === "Escape") togglePause();
   if (event.code === "KeyF") { event.preventDefault(); if (!document.fullscreenElement) canvas.parentElement.requestFullscreen?.(); else document.exitFullscreen?.(); }

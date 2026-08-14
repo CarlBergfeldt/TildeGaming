@@ -78,3 +78,17 @@ Original prompt: Add eight omnidirectional poses for the horse and rider, plus h
 - Quit arena and post-ride return paths now reopen the partnership step first.
 - Added the current selection step to the deterministic arena text state. Validation was not run, following `AGENTS.md`.
 - Fixed arena-name editing: gameplay shortcuts now ignore editor inputs, textareas, selects, and editable controls, so Space and arrow keys work normally while typing names.
+- Follow-up root cause: opening the editor while the Trail Runner view remained active allowed `game.js` to capture Space. Added the same form-field guard to Trail Runner and stopped editor key events from bubbling into either game's global controls.
+
+## 2026-08-14 - Five-direction prop facing
+
+- Replaced free-angle Rotation with five discrete viewpoints: east–west front, diagonal right, north–south, diagonal left, and east–west back.
+- Props remain upright. A sliced perspective projection sends their length into arena depth, including a true north–south presentation, instead of rotating the whole sprite flat.
+- Existing rotation values map to the nearest of the five viewpoints for backward compatibility; editing a prop stores `facing` and clears the old tilt.
+- The arena-fence prop uses the same five viewpoints. Added a matching open arena fence gate as a new editor prop.
+- Made Facing a permanent, high-visibility toolbar directly below the editor header instead of relying on JavaScript to replace the old Rotation field. The obsolete Rotation control is hidden.
+- Adjusted North–south to a 78° perspective angle instead of a perfectly edge-on 90°. It retains a visible front face and useful width while still reading as a north–south fence or obstacle run.
+- Gave Facing a dedicated immediate-input handler, synchronized all visible Facing controls, applied changes to the full prop selection, and added an editor status confirmation naming the chosen viewpoint.
+- Fixed steering focus after editor use: closing the editor now blurs its last field and focuses the active game canvas. Hidden editor fields no longer suppress gameplay keys, while visible editor text/select controls remain protected from game shortcuts.
+- Corrected run/jump sprite mirroring after reviewing the actual generated direction frames: east now faces right, southeast uses the mirrored right-facing diagonal, south remains the front-facing/downward frame, and west faces left. The eating set keeps its separate, already-correct mapping.
+- Added facing to deterministic text state and unit-test coverage, but did not run validation per `AGENTS.md`.

@@ -3,7 +3,7 @@ import { clamp } from "./game-core.js";
 export const ARENA_OBJECT_TYPES = Object.freeze([
   "jump", "log-jump", "vertical-rails", "oxer", "cone", "dressage-marker",
   "barrel", "hay-bale", "flower-planter", "saddle-rack", "water-trough", "arena-fence", "apple",
-  "hotdog-stand", "drinks-cart", "judges-table", "photographer", "spectator-group", "grandstand", "waiting-horses", "announcer-booth"
+  "hotdog-stand", "drinks-cart", "judges-table", "photographer", "spectator-group", "grandstand", "waiting-horses", "announcer-booth", "arena-fence-gate"
 ]);
 
 export const JUMP_TYPES = Object.freeze(["jump", "log-jump", "vertical-rails", "oxer"]);
@@ -22,6 +22,7 @@ export function validateArena(data) {
     for (const object of (scene.objects || [])) {
       if (!object.id || !ARENA_OBJECT_TYPES.includes(object.type)) errors.push(`invalid object in scene ${index + 1}`);
       if (![object.x, object.y, object.rotation, object.height].every(Number.isFinite)) errors.push(`${object.id || "object"} has invalid numbers`);
+      if (object.facing != null && (!Number.isInteger(object.facing) || object.facing < 0 || object.facing > 4)) errors.push(`${object.id || "object"} has invalid facing`);
     }
   }
   return errors;
@@ -51,6 +52,18 @@ export function arenaFloor(scene) {
   const width = clamp(Number(scene?.floor?.width) || 280, 120, 288);
   const height = clamp(Number(scene?.floor?.height) || 152, 72, 156);
   return { x: (320 - width) / 2, y: (180 - height) / 2, width, height };
+}
+
+export function propFacing(object) {
+  if (Number.isInteger(object?.facing)) return Math.max(0, Math.min(4, object.facing));
+  const turn = Math.PI * 2;
+  const angle = ((Number(object?.rotation) || 0) % turn + turn) % turn;
+  const folded = angle > Math.PI ? turn - angle : angle;
+  return Math.max(0, Math.min(4, Math.round(folded / (Math.PI / 4))));
+}
+
+export function propFacingAngle(facing) {
+  return [0, 45, 78, 135, 180][propFacing({ facing })] * Math.PI / 180;
 }
 
 export function directionIndex(angle) {

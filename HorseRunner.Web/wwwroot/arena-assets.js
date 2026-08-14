@@ -1,9 +1,9 @@
 export const HORSE_DIRECTIONS = Object.freeze([
-  Object.freeze({ id: "east", file: "01.png", flip: true }),
-  Object.freeze({ id: "southeast", file: "02.png", flip: false }),
+  Object.freeze({ id: "east", file: "01.png", flip: false }),
+  Object.freeze({ id: "southeast", file: "02.png", flip: true }),
   Object.freeze({ id: "south", file: "03.png", flip: false }),
   Object.freeze({ id: "southwest", file: "04.png", flip: false }),
-  Object.freeze({ id: "west", file: "01.png", flip: false }),
+  Object.freeze({ id: "west", file: "01.png", flip: true }),
   Object.freeze({ id: "northwest", file: "05.png", flip: false }),
   Object.freeze({ id: "north", file: "07.png", flip: false }),
   Object.freeze({ id: "northeast", file: "08.png", flip: true })
@@ -44,7 +44,8 @@ export const ARENA_PROPS = Object.freeze([
   Object.freeze({ type: "spectator-group", label: "Spectator group", file: "18.png", width: 41, height: 31, radius: 15, behavior: "decor" }),
   Object.freeze({ type: "grandstand", label: "Covered grandstand", file: "19.png", width: 58, height: 43, radius: 20, behavior: "decor" }),
   Object.freeze({ type: "waiting-horses", label: "Waiting horses", file: "20.png", width: 44, height: 35, radius: 16, behavior: "decor" }),
-  Object.freeze({ type: "announcer-booth", label: "Announcer booth", file: "21.png", width: 38, height: 40, radius: 15, behavior: "decor" })
+  Object.freeze({ type: "announcer-booth", label: "Announcer booth", file: "21.png", width: 38, height: 40, radius: 15, behavior: "decor" }),
+  Object.freeze({ type: "arena-fence-gate", label: "Arena fence gate", file: "22.png", width: 46, height: 35, radius: 14, behavior: "decor" })
 ]);
 
 export const ARENA_PROP_BY_TYPE = new Map(ARENA_PROPS.map(prop => [prop.type, prop]));

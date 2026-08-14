@@ -79,6 +79,11 @@ kbd { padding:1px 4px; border:1px solid #8d7456; border-bottom-width:2px; backgr
 .editor[hidden] { display:none; }
 .editor { position:fixed; z-index:20; inset:2vh auto auto 2vw; display:block; width:2800px; max-width:none; height:96vh; margin:0; padding:16px; overflow:auto; color:var(--cream); border:4px solid #f7d77d; background:#101827; box-shadow:0 0 0 100vmax rgba(5,8,12,.85); }
 .editor>header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.editor-facing-bar { position:sticky; z-index:3; top:-16px; display:grid; grid-template-columns:auto minmax(220px,360px) 1fr; gap:10px; align-items:center; margin:0 0 12px; padding:10px 12px; border:2px solid #f7d77d; color:#fff0c2; background:#172536; box-shadow:0 4px 12px rgba(0,0,0,.28); }
+.editor-facing-bar label { color:var(--gold); font-weight:800; }
+.editor-facing-bar select { padding:8px; }
+.editor-facing-bar span { color:#9db9ae; font-size:10px; }
+.properties label:has(#prop-rotation) { display:none; }
 .editor h2 { margin:0; color:var(--gold); text-transform:uppercase; }
 .editor-grid { display:grid; grid-template-columns:260px 1920px 560px; gap:14px; }
 .editor-tools,.json-tools { display:flex; flex-direction:column; gap:8px; }

@@ -1,7 +1,7 @@
 import { FIXED_STEP, clamp } from "./game-core.js";
 import { ARENA_PROP_BY_TYPE, ARENA_PROPS, HORSE_DIRECTIONS, HORSE_EATING_DIRECTIONS, HORSE_JUMP_FRAME_COUNT, HORSE_RUN_FRAME_COUNT, horseAnimatedJumpFramePath, horseEatingSpritePath, horseRunFramePath, propSpritePath } from "./arena-assets.js";
 import { DEFAULT_ARENA_APPEARANCE, HORSE_APPEARANCES, RIDER_APPEARANCES, horseAppearance, normalizeArenaAppearance, recolorArenaSprite, riderAppearance } from "./arena-appearance.js";
-import { APPLE_EATING_SECONDS, JUMP_TYPES, addScore, animationFrame, arenaFloor, directionIndex, distance, finalScore, jumpAnimationFrame, jumpClearance, paceSpeed, qualifies, shouldRebuildObstacle, validateArena } from "./arena-core.js";
+import { APPLE_EATING_SECONDS, JUMP_TYPES, addScore, animationFrame, arenaFloor, directionIndex, distance, finalScore, jumpAnimationFrame, jumpClearance, paceSpeed, propFacing, propFacingAngle, qualifies, shouldRebuildObstacle, validateArena } from "./arena-core.js";
 
 const LOGICAL_WIDTH = 320;
 const LOGICAL_HEIGHT = 180;
@@ -338,7 +338,8 @@ function drawProp(object) {
   if (!definition || !image) return;
   const visualState = objectStates.get(object.id);
   if (visualState?.picked || visualState?.consumed) return;
-  ellipse(0, 1, definition.width * .36, Math.max(1.5, definition.height * .09), "rgba(30,25,20,.22)");
+  const facing = propFacing(object), angle = propFacingAngle(facing);
+  ctx.save(); ctx.rotate(angle); ellipse(0, 1, definition.width * .36, Math.max(1.5, definition.height * .09), "rgba(30,25,20,.22)"); ctx.restore();
   if (definition.behavior === "distraction") {
     const pulse = 1 + Math.sin(performance.now() / 220) * .12;
     ctx.save(); ctx.scale(pulse, pulse);
@@ -353,11 +354,21 @@ function drawProp(object) {
     ctx.scale(1, 1 - fall * .68);
     ctx.globalAlpha = .92;
   }
-  ctx.drawImage(image, -definition.width / 2, -definition.height, definition.width, definition.height);
+  drawFacingImage(image, definition.width, definition.height, facing);
   ctx.restore();
   if (visualState?.outcome === "cleared") {
     ctx.beginPath(); ctx.arc(0, -definition.height * .55, 5, 0, Math.PI * 2); ctx.fillStyle = "rgba(42,112,66,.9)"; ctx.fill();
     ctx.strokeStyle = "#fff7cf"; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(-2.5, -definition.height * .55); ctx.lineTo(-.5, -definition.height * .55 + 2); ctx.lineTo(3, -definition.height * .55 - 2.5); ctx.stroke();
+  }
+}
+
+function drawFacingImage(image, width, height, facing) {
+  const angle = propFacingAngle(facing), cosine = Math.cos(angle), sine = Math.sin(angle), slices = 48;
+  for (let index = 0; index < slices; index++) {
+    const sourceX = index * image.naturalWidth / slices, sourceWidth = image.naturalWidth / slices + .5;
+    const unit = (index + .5) / slices - .5, projectedWidth = Math.max(.7, width / slices * Math.max(.18, Math.abs(cosine)));
+    const x = unit * width * cosine, y = unit * width * sine * .42;
+    ctx.drawImage(image, sourceX, 0, sourceWidth, image.naturalHeight, x - projectedWidth / 2, -height + y, projectedWidth, height);
   }
 }
 
@@ -385,7 +396,7 @@ function draw() {
   beginFrame();
   drawBackground();
   drawCourseGuide();
-  const renderables = scene.objects.map(object => ({ baseline: object.y, draw: () => { ctx.save(); ctx.translate(object.x, object.y); ctx.rotate(object.rotation || 0); drawProp(object); ctx.restore(); } }));
+  const renderables = scene.objects.map(object => ({ baseline: object.y, draw: () => { ctx.save(); ctx.translate(object.x, object.y); drawProp(object); ctx.restore(); } }));
   if (horse) renderables.push({ baseline: horse.y, draw: drawHorse });
   renderables.sort((a, b) => a.baseline - b.baseline).forEach(item => item.draw());
   if (mode === "paused") { rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, "rgba(20,24,24,.42)"); ctx.fillStyle = "#fff4cf"; ctx.font = "bold 14px Georgia,serif"; ctx.textAlign = "center"; ctx.fillText("ARENA PAUSED", LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2); ctx.textAlign = "start"; }
@@ -409,7 +420,7 @@ function renderGameToText() {
     appearance: { horse: horseAppearance(appearance.horse).label, rider: riderAppearance(appearance.rider).label },
     horse: horse ? { x: +horse.x.toFixed(1), y: +horse.y.toFixed(1), z: +horse.z.toFixed(1), angle: +horse.angle.toFixed(2), direction, pace: horse.eating > 0 ? "Eating" : PACE_NAMES[paceLevel], speed: +paceSpeed(data.settings.baseSpeed, paceLevel).toFixed(1), eatingRemaining: +horse.eating.toFixed(1), eatingAppleId: horse.eatingAppleId, animation: horse.eating > 0 ? { kind: "eating", frame: 0, total: 1 } : horse.z > 2 ? { kind: "jump", frame: jumpAnimationFrame(horse.z, horse.vz, data.settings.jumpPower), total: HORSE_JUMP_FRAME_COUNT } : { kind: "canter", frame: animationFrame(horse.phase, HORSE_RUN_FRAME_COUNT), total: HORSE_RUN_FRAME_COUNT } } : null,
     lap: lap ?? 0, checkpoint: checkpoint ?? 0, elapsed: +(elapsed ?? 0).toFixed(1), clearances: clearances ?? 0, faults: faults ?? 0,
-    objects: (scene?.objects || []).map(object => ({ id: object.id, type: object.type, x: object.x, y: object.y, height: object.height, outcome: objectStates.get(object.id)?.outcome || null }))
+    objects: (scene?.objects || []).map(object => ({ id: object.id, type: object.type, x: object.x, y: object.y, height: object.height, facing: propFacing(object), outcome: objectStates.get(object.id)?.outcome || null }))
   });
 }
 
@@ -430,7 +441,8 @@ addEventListener("gameviewchange", syncHeaderControls);
 $("arena-score-form").addEventListener("submit", event => { event.preventDefault(); const input = $("arena-player-name"), entry = { name: input.value.trim().slice(0, 16) || "Rider", score: Number(input.dataset.score), time: elapsed, clearances, faults }; storageSet("horseRunnerArenaScores", addScore(storageGet("horseRunnerArenaScores", []), entry)); input.value = ""; $("arena-name-card").hidden = true; drawLeaderboard(); showOverlay("Hall of fame!"); });
 addEventListener("keydown", event => {
   if (document.body.dataset.view !== "arena") return;
-  if (event.target.closest?.("input, textarea, select, [contenteditable='true'], #editor")) return;
+  const typingTarget = event.target.closest?.("input, textarea, select, [contenteditable='true']");
+  if (typingTarget && (!typingTarget.closest("#editor") || !$("editor").hidden)) return;
   if (event.code === "Space") { event.preventDefault(); jump(); }
   if ((event.code === "ArrowUp" || event.code === "KeyW") && !event.repeat) { event.preventDefault(); setPace(paceLevel + 1); }
   if ((event.code === "ArrowDown" || event.code === "KeyS") && !event.repeat) { event.preventDefault(); setPace(paceLevel - 1); }
