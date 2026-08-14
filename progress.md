@@ -77,3 +77,4 @@ Original prompt: Add eight omnidirectional poses for the horse and rider, plus h
 - Added Back to partnership navigation from arena selection. Enter arena is available only on the second step.
 - Quit arena and post-ride return paths now reopen the partnership step first.
 - Added the current selection step to the deterministic arena text state. Validation was not run, following `AGENTS.md`.
+- Fixed arena-name editing: gameplay shortcuts now ignore editor inputs, textareas, selects, and editable controls, so Space and arrow keys work normally while typing names.

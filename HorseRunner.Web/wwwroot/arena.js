@@ -430,6 +430,7 @@ addEventListener("gameviewchange", syncHeaderControls);
 $("arena-score-form").addEventListener("submit", event => { event.preventDefault(); const input = $("arena-player-name"), entry = { name: input.value.trim().slice(0, 16) || "Rider", score: Number(input.dataset.score), time: elapsed, clearances, faults }; storageSet("horseRunnerArenaScores", addScore(storageGet("horseRunnerArenaScores", []), entry)); input.value = ""; $("arena-name-card").hidden = true; drawLeaderboard(); showOverlay("Hall of fame!"); });
 addEventListener("keydown", event => {
   if (document.body.dataset.view !== "arena") return;
+  if (event.target.closest?.("input, textarea, select, [contenteditable='true'], #editor")) return;
   if (event.code === "Space") { event.preventDefault(); jump(); }
   if ((event.code === "ArrowUp" || event.code === "KeyW") && !event.repeat) { event.preventDefault(); setPace(paceLevel + 1); }
   if ((event.code === "ArrowDown" || event.code === "KeyS") && !event.repeat) { event.preventDefault(); setPace(paceLevel - 1); }
