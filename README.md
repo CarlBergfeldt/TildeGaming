@@ -23,10 +23,13 @@ Choose **Arena five-lap** on the same page for a top-down, automatically moving
 horse-riding challenge. Steer with the arrow keys or WASD and jump with Space.
 Scores combine five completed laps, successful clearances, faults, and elapsed
 time; qualifying riders can enter their name in a browser-local top-five table.
+Before entering the arena, choose from four horse coats and four rider jackets;
+the selected partnership is remembered locally for the next ride.
 
 The start menu's **Game editor** provides drag-and-drop arena layout, multiple
 selection, object properties, undo/redo, scene creation, JSON validation,
-import/export, and local drafts. The shipped arena is inspectable at
+import/export, local drafts, and a palette of jumps, training items, concessions,
+spectators, officials, waiting horses, and event structures. The shipped arena is inspectable at
 `HorseRunner.Web/wwwroot/data/arena.json`; saving a draft never overwrites it.
 
 Run the dependency-free gameplay checks with:

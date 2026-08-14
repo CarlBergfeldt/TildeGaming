@@ -20,6 +20,9 @@ export const HORSE_EATING_DIRECTIONS = Object.freeze([
   Object.freeze({ id: "northeast", file: "08.png", flip: true })
 ]);
 
+export const HORSE_RUN_FRAME_COUNT = 6;
+export const HORSE_JUMP_FRAME_COUNT = 4;
+
 export const ARENA_PROPS = Object.freeze([
   Object.freeze({ type: "jump", label: "Show jump", file: "01.png", width: 40, height: 30, radius: 11, behavior: "jump" }),
   Object.freeze({ type: "log-jump", label: "Log jump", file: "02.png", width: 38, height: 29, radius: 11, behavior: "jump" }),
@@ -33,13 +36,29 @@ export const ARENA_PROPS = Object.freeze([
   Object.freeze({ type: "saddle-rack", label: "Saddle rack", file: "10.png", width: 21, height: 26, radius: 8, behavior: "decor" }),
   Object.freeze({ type: "water-trough", label: "Water trough", file: "11.png", width: 25, height: 16, radius: 10, behavior: "fault" }),
   Object.freeze({ type: "arena-fence", label: "Arena fence", file: "12.png", width: 31, height: 21, radius: 10, behavior: "decor" }),
-  Object.freeze({ type: "apple", label: "Apple distraction", file: "13.png", width: 9, height: 9, radius: 11, behavior: "distraction" })
+  Object.freeze({ type: "apple", label: "Apple distraction", file: "13.png", width: 9, height: 9, radius: 11, behavior: "distraction" }),
+  Object.freeze({ type: "hotdog-stand", label: "Hotdog stand", file: "14.png", width: 43, height: 35, radius: 16, behavior: "decor" }),
+  Object.freeze({ type: "drinks-cart", label: "Drinks cart", file: "15.png", width: 31, height: 34, radius: 13, behavior: "decor" }),
+  Object.freeze({ type: "judges-table", label: "Judges' table", file: "16.png", width: 45, height: 29, radius: 16, behavior: "decor" }),
+  Object.freeze({ type: "photographer", label: "Event photographer", file: "17.png", width: 18, height: 29, radius: 8, behavior: "decor" }),
+  Object.freeze({ type: "spectator-group", label: "Spectator group", file: "18.png", width: 41, height: 31, radius: 15, behavior: "decor" }),
+  Object.freeze({ type: "grandstand", label: "Covered grandstand", file: "19.png", width: 58, height: 43, radius: 20, behavior: "decor" }),
+  Object.freeze({ type: "waiting-horses", label: "Waiting horses", file: "20.png", width: 44, height: 35, radius: 16, behavior: "decor" }),
+  Object.freeze({ type: "announcer-booth", label: "Announcer booth", file: "21.png", width: 38, height: 40, radius: 15, behavior: "decor" })
 ]);
 
 export const ARENA_PROP_BY_TYPE = new Map(ARENA_PROPS.map(prop => [prop.type, prop]));
 
 export function horseSpritePath(direction) {
   return `assets/arena/horse-rider/${direction.file}`;
+}
+
+export function horseRunFramePath(direction, frame) {
+  return `assets/arena/horse-rider-run/${direction.file.slice(0, 2)}/${String(frame + 1).padStart(2, "0")}.png`;
+}
+
+export function horseAnimatedJumpFramePath(direction, frame) {
+  return `assets/arena/horse-rider-jump-animated/${direction.file.slice(0, 2)}/${String(frame + 1).padStart(2, "0")}.png`;
 }
 
 export function horseJumpSpritePath(direction) {

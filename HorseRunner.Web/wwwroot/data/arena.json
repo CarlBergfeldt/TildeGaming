@@ -6,6 +6,7 @@
       "id": "royal-arena",
       "name": "Royal Four-Fence Course",
       "palette": { "sand": "#c99b62", "rail": "#fff0bd", "grass": "#426b45", "crowd": "#693f55" },
+      "floor": { "width": 280, "height": 152 },
       "start": { "x": 55, "y": 140, "angle": -1.5708 },
       "checkpoints": [
         { "x": 55, "y": 40 },

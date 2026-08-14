@@ -25,7 +25,7 @@ test("horse hitbox trims decorative pixels", async () => {
 
 test("arena validation, clearance, and scores are deterministic", async () => {
   const { APPLE_EATING_SECONDS, ARENA_OBJECT_TYPES, addScore, directionIndex, finalScore, jumpClearance, paceSpeed, qualifies, validateArena } = await import("../HorseRunner.Web/wwwroot/arena-core.js");
-  const arena = { version: 1, settings: { laps: 5 }, scenes: [{ id: "a", name: "Arena", objects: [{ id: "j", type: "jump", x: 1, y: 2, height: 2, rotation: 0 }] }] };
+  const arena = { version: 1, settings: { laps: 5 }, scenes: [{ id: "a", name: "Arena", floor: { width: 280, height: 152 }, checkpoints: [{ x: 10, y: 10 }], objects: [{ id: "j", type: "jump", x: 1, y: 2, height: 2, rotation: 0 }] }] };
   assert.deepEqual(validateArena(arena), []);
   assert.equal(directionIndex(0), 0);
   assert.equal(directionIndex(Math.PI / 2), 2);
@@ -47,4 +47,28 @@ test("arena validation, clearance, and scores are deterministic", async () => {
   assert.equal(finalScore({ elapsed: 60, clearances: 10, faults: 1, laps: 5 }), 6430);
   assert.equal(qualifies([{ score: 100 }, { score: 90 }, { score: 80 }, { score: 70 }, { score: 60 }], 61), true);
   assert.deepEqual(addScore([{name:"A",score:1,time:3}],{name:"B",score:2,time:4}).map(x=>x.name), ["B","A"]);
+});
+
+test("arena appearance choices normalize and recolor independently", async () => {
+  const { HORSE_APPEARANCES, RIDER_APPEARANCES, normalizeArenaAppearance, remapArenaPixel } = await import("../HorseRunner.Web/wwwroot/arena-appearance.js");
+  assert.equal(HORSE_APPEARANCES.length, 4);
+  assert.equal(RIDER_APPEARANCES.length, 4);
+  assert.deepEqual(normalizeArenaAppearance({ horse: "dapple-grey", rider: "burgundy" }), { horse: "dapple-grey", rider: "burgundy" });
+  assert.deepEqual(normalizeArenaAppearance({ horse: "unknown", rider: "unknown" }), { horse: "chestnut", rider: "navy" });
+  assert.notDeepEqual(remapArenaPixel(150, 88, 42, 255, 4, 8, "midnight", "navy"), [150, 88, 42, 255]);
+  assert.notDeepEqual(remapArenaPixel(31, 44, 92, 255, 4, 8, "chestnut", "forest"), [31, 44, 92, 255]);
+});
+
+test("arena animation phases and faulted-fence rebuild are deterministic", async () => {
+  const { animationFrame, jumpAnimationFrame, shouldRebuildObstacle } = await import("../HorseRunner.Web/wwwroot/arena-core.js");
+  assert.equal(animationFrame(0, 6), 0);
+  assert.equal(animationFrame(5.99, 6), 5);
+  assert.equal(animationFrame(6, 6), 0);
+  assert.equal(jumpAnimationFrame(2, 20, 30), 0);
+  assert.equal(jumpAnimationFrame(12, 7, 30), 1);
+  assert.equal(jumpAnimationFrame(20, -4, 30), 2);
+  assert.equal(jumpAnimationFrame(7, -20, 30), 3);
+  assert.equal(shouldRebuildObstacle(28, 10, 3, 2), false);
+  assert.equal(shouldRebuildObstacle(29, 10, 3, 2), true);
+  assert.equal(shouldRebuildObstacle(40, 10, 1, 2), false);
 });

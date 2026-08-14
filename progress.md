@@ -39,3 +39,41 @@ Original prompt: Add eight omnidirectional poses for the horse and rider, plus h
 - Added a five-second proximity-triggered eating state: the horse stops, ignores movement/jump/pace input, picks up the apple, displays it at the mouth, then resumes its previous pace.
 - Added apple state to the deterministic text renderer and unit coverage for the five-second duration and editor object type.
 - Validation: JavaScript unit tests pass (4/4), Release build succeeds with zero warnings, the standard web-game Playwright client completes without console errors, and the dedicated arena browser test verifies pickup, input lock, five-second countdown, apple removal, pace restoration, movement resumption, and editor availability.
+
+## 2026-08-14 - Arena stable and event expansion
+
+- New request: selectable horse/rider visual variations at arena start plus additional event and spectator props for the editor.
+- Added four independently selectable horse coats (Chestnut, Midnight, Dapple Grey, Palomino) and four rider jacket choices (Classic Navy, Burgundy, Forest, Plum). The complete direction, jumping, and eating sprite sets are recolored from the approved source poses so every combination remains aligned.
+- Added a responsive stable-selection panel with a live partnership preview and persisted selection.
+- Generated two painterly event-prop atlases with the built-in image tool, removed chroma backgrounds, split and normalized the sprites, and corrected cross-cell fragments before approval.
+- Added eight editor props: hotdog stand, drinks cart, judges' table, event photographer, spectator group, covered grandstand, waiting horses, and announcer booth.
+- Validation: JavaScript tests pass (5/5), Release build succeeds with zero warnings, the standard browser-game client completes, and dedicated browser QA verifies all selectors, live preview changes, persisted choices, restart behavior, jumping with the selected partnership, all eight editor entries, JSON validation, and rendered editor placement with no console errors.
+
+## 2026-08-14 - Arena obstacle reset and animation expansion
+
+- New request: restore faulted fences so they must be attempted again on the next approach, add a six-frame horse running cycle, and expand jumping to four animation frames.
+- Reworked faulted-fence state into `fallen -> rebuilding -> active`. A fence begins rebuilding only after its fall has been visible and the horse has moved safely clear; completion removes the previous contact latch so the same fence is active on the next approach.
+- Generated seven source-direction 5x2 atlases with the built-in image tool. Each atlas contains six canter poses and four jump poses; mirroring supplies the eighth runtime direction.
+- Removed chroma backgrounds, discarded disconnected cross-cell fragments, and normalized 42 canter frames plus 28 jump frames to a stable bottom-center anchor.
+- Integrated frame-rate-aware slow/fast canter playback, four jump phases selected from vertical velocity, appearance recoloring across all new frames, and animation state in the deterministic text renderer.
+- Added deterministic unit coverage for frame cycling, jump phase selection, and safe-distance fence rebuilding. The six JavaScript tests and both Release builds passed before the project validation policy was changed.
+- Browser validation was stopped when requested. A project-level `AGENTS.md` now requires asking the user before final builds, automated tests, browser playtests, or screenshot review.
+
+## 2026-08-14 - Large arena and course editor expansion
+
+- Enlarged the arena presentation to 2.5× its previous browser size (3200 × 1800 backing canvas in a 3950px-wide game cabinet). Normal browser scrolling and zoom remain available.
+- Enlarged the editor to twice its previous design size, including a 1920 × 1080 editing canvas and a wide scrollable workspace.
+- Added a dedicated Quit arena button that exits the active ride, clears transient riding state, exits fullscreen when necessary, and returns to horse/rider selection.
+- Added a course selector to the partnership screen. Saved scenes are now treated as separately named arenas and the selected arena persists locally.
+- Added editable arena names plus create/delete arena controls in the editor.
+- Added adjustable riding-floor width and length. The centered trapezoidal sand surface uses depth shading, grooming lines, hoof texture, perspective rails, and leaves the surrounding grass available as spectator/event space.
+- Added Props, Course goals, and Start position editor modes. Course-goal clicks create ordered numbered circles and a dashed intended route; goals can be dragged, individually deleted, or cleared. Start-position mode moves the route origin.
+- Runtime movement is constrained to each arena's configured riding floor, while scenery and spectator props may remain outside it.
+- Final validation has not been run, following `AGENTS.md`; ask the user before testing or browser playtesting.
+
+## 2026-08-14 - Two-step ride selection
+
+- Changed arena entry into an explicit two-step flow: first select and confirm the horse/rider partnership, then choose a saved arena on a separate screen.
+- Added Back to partnership navigation from arena selection. Enter arena is available only on the second step.
+- Quit arena and post-ride return paths now reopen the partnership step first.
+- Added the current selection step to the deterministic arena text state. Validation was not run, following `AGENTS.md`.
