@@ -5,6 +5,11 @@ Games by Tilde &amp; Carl
 
    <img width="382" height="273" alt="image" src="https://github.com/user-attachments/assets/5c7b3592-6f38-48bc-a819-d864a24899c6" />
 
+## Requirements
+
+- .NET 10 SDK for the desktop and browser projects.
+- Node.js for the dependency-free browser gameplay checks.
+
 ## Browser edition
 
 A browser-playable vertical slice now lives in `HorseRunner.Web`. It uses an

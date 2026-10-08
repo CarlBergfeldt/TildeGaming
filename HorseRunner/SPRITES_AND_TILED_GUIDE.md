@@ -152,7 +152,7 @@ Currently the game generates obstacles procedurally in `GameLevel.cs`. To load f
 ## Building and Running
 
 ```bash
-# Prerequisites: .NET 8 SDK + MonoGame templates
+# Prerequisites: .NET 10 SDK + MonoGame templates
 dotnet new install MonoGame.Templates.CSharp
 
 # Build and run
